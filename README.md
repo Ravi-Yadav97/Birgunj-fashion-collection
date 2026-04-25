@@ -42,3 +42,4 @@ The OTP flow generates a real six-digit OTP and stores it with expiry. In local 
 QR payments are manual-verification payments. The admin can upload or paste a QR image and later mark payment status as verified from the order panel.
 # Birgunj-fashion-collection
 # Birgunj-fashion-collection
+# Birgunj-fashion-collection
