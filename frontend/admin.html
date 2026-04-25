@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin | BIRGUNJ FASHION COLLECTION</title>
+  <style>
+    :root {
+      --ink: #202124;
+      --muted: #667085;
+      --line: #e7e8ec;
+      --bg: #f7f5ef;
+      --panel: #ffffff;
+      --brand: #b42318;
+      --green: #087443;
+      --shadow: 0 18px 50px rgba(32, 33, 36, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    button, input, textarea, select { font: inherit; }
+    button {
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: var(--ink);
+      color: white;
+      min-height: 42px;
+      padding: 0 16px;
+      font-weight: 750;
+    }
+    button.secondary { background: #ffffff; color: var(--ink); border: 1px solid var(--line); }
+    button.danger { background: var(--brand); }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    img { max-width: 100%; display: block; }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(247, 245, 239, 0.94);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(32, 33, 36, 0.08);
+    }
+    .nav {
+      max-width: 1180px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+    .mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--brand);
+      font-weight: 950;
+    }
+    .nav a {
+      color: var(--ink);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-weight: 750;
+      font-size: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    main { padding: 46px 18px; }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    h1 { font-size: clamp(30px, 4vw, 48px); margin: 0; letter-spacing: 0; }
+    h2 { font-size: clamp(26px, 4vw, 38px); margin: 0; letter-spacing: 0; }
+    .muted { color: var(--muted); }
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(32, 33, 36, .05);
+    }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+    .admin-row, .order-row {
+      display: grid;
+      grid-template-columns: 58px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .order-row {
+      grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) minmax(260px, 360px);
+      align-items: start;
+      gap: 18px;
+    }
+    .order-id {
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+    }
+    .order-details {
+      min-width: 0;
+      line-height: 1.35;
+    }
+    .order-details span { display: block; overflow-wrap: anywhere; }
+    .order-actions {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+    .admin-row img { width: 58px; height: 72px; object-fit: cover; border-radius: 6px; }
+    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .tabs button { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .tabs button.active { background: var(--ink); color: #fff; }
+    .hidden { display: none !important; }
+    .notice {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 6px;
+      z-index: 40;
+      box-shadow: var(--shadow);
+    }
+    @media (max-width: 900px) {
+      .nav { align-items: flex-start; flex-direction: column; }
+      .two-col { grid-template-columns: 1fr; }
+      .order-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      main { padding: 34px 14px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .admin-row { grid-template-columns: 50px 1fr; }
+      .admin-row > :last-child { grid-column: 1 / -1; }
+      .button-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="nav">
+      <div class="brand"><span class="mark">BF</span><span>BIRGUNJ FASHION COLLECTION</span></div>
+      <a href="index.html">Back to Store</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h1>Admin Panel</h1>
+          <p class="muted">Manage products, orders, QR payment, pages, payments, and returns.</p>
+        </div>
+        <button id="logoutButton" class="secondary hidden" onclick="adminLogout()">Logout</button>
+      </div>
+
+      <div id="adminLogin" class="panel">
+        <div class="form-grid">
+          <input id="adminPhone" placeholder="Admin phone" value="9800000000" />
+          <input id="adminPassword" type="password" placeholder="Password" value="admin123" />
+          <button class="full" onclick="adminLogin()">Login</button>
+        </div>
+      </div>
+
+      <div id="adminPanel" class="hidden">
+        <div class="tabs">
+          <button class="active" onclick="adminTab('products', this)">Products</button>
+          <button onclick="adminTab('orders', this)">Orders</button>
+          <button onclick="adminTab('payments', this)">Payments</button>
+          <button onclick="adminTab('returns', this)">Returns</button>
+          <button onclick="adminTab('chats', this)">Chats</button>
+          <button onclick="adminTab('pages', this)">Pages & QR</button>
+        </div>
+        <div id="adminContent"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = "";
+    let products = [];
+    let settings = {};
+    let pages = {};
+    let adminToken = localStorage.getItem("bfc_admin_token") || "";
+
+    const money = (n) => `Rs. ${Number(n || 0).toLocaleString("en-IN")}`;
+    const dateText = (date) => new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+    const adminHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` });
+
+    function toast(message) {
+      const el = document.createElement("div");
+      el.className = "notice";
+      el.textContent = message;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2600);
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(API + path, options);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      return data;
+    }
+
+    async function init() {
+      const [productData, settingsData] = await Promise.all([api("/api/products"), api("/api/settings")]);
+      products = productData;
+      settings = settingsData.settings;
+      pages = settingsData.pages;
+      if (adminToken) showAdmin();
+    }
+
+    async function adminLogin() {
+      try {
+        const data = await api("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: document.getElementById("adminPhone").value,
+            password: document.getElementById("adminPassword").value
+          })
+        });
+        adminToken = data.token;
+        localStorage.setItem("bfc_admin_token", adminToken);
+        showAdmin();
+      } catch (e) { toast(e.message); }
+    }
+
+    function adminLogout() {
+      adminToken = "";
+      localStorage.removeItem("bfc_admin_token");
+      document.getElementById("adminLogin").classList.remove("hidden");
+      document.getElementById("adminPanel").classList.add("hidden");
+      document.getElementById("logoutButton").classList.add("hidden");
+      document.getElementById("adminContent").innerHTML = "";
+    }
+
+    function showAdmin() {
+      document.getElementById("adminLogin").classList.add("hidden");
+      document.getElementById("adminPanel").classList.remove("hidden");
+      document.getElementById("logoutButton").classList.remove("hidden");
+      renderAdminProducts();
+    }
+
+    function adminTab(name, btn) {
+      document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (name === "products") renderAdminProducts();
+      if (name === "orders") renderAdminOrders();
+      if (name === "payments") renderAdminPayments();
+      if (name === "returns") renderAdminReturns();
+      if (name === "chats") renderAdminChats();
+      if (name === "pages") renderAdminPages();
+    }
+
+    function renderAdminProducts() {
+      document.getElementById("adminContent").innerHTML = `
+        <div class="two-col">
+          <form class="panel" onsubmit="saveProduct(event)">
+            <h3 id="productFormTitle">Add Product</h3>
+            <div class="form-grid">
+              <input type="hidden" id="editProductId">
+              <input id="pName" placeholder="Product name" required>
+              <input id="pCategory" placeholder="Category" required>
+              <input id="pPrice" type="number" placeholder="Price" required>
+              <input id="pStock" type="number" placeholder="Stock" value="10">
+              <textarea class="full" id="pDescription" placeholder="Description"></textarea>
+              <input class="full" id="pImage" placeholder="Image URL or upload below">
+              <input class="full" id="pUpload" type="file" accept="image/*">
+              <label class="full"><input id="pFeatured" type="checkbox" style="width:auto"> Featured</label>
+              <button class="full">Add Product</button>
+              <button type="button" class="full secondary" onclick="resetProductForm()">Clear Form</button>
+            </div>
+          </form>
+          <div class="panel">
+            <h3>Products</h3>
+            ${products.map((p) => `<div class="admin-row"><img src="${p.image}" alt="${p.name}"><div><strong>${p.name}</strong><br><span class="muted">${money(p.price)} | ${p.category} | Stock ${p.stock}</span></div><div class="button-row"><button class="secondary" onclick="editProduct('${p.id}')">Edit</button><button class="danger" onclick="deleteProduct('${p.id}')">Delete</button></div></div>`).join("")}
+          </div>
+        </div>`;
+    }
+
+    function editProduct(id) {
+      const p = products.find((product) => product.id === id);
+      if (!p) return;
+      document.getElementById("productFormTitle").textContent = "Edit Product";
+      document.getElementById("editProductId").value = p.id;
+      document.getElementById("pName").value = p.name;
+      document.getElementById("pCategory").value = p.category;
+      document.getElementById("pPrice").value = p.price;
+      document.getElementById("pStock").value = p.stock;
+      document.getElementById("pDescription").value = p.description;
+      document.getElementById("pImage").value = p.image;
+      document.getElementById("pFeatured").checked = Boolean(p.featured);
+    }
+
+    function resetProductForm() {
+      document.getElementById("productFormTitle").textContent = "Add Product";
+      document.getElementById("editProductId").value = "";
+      document.getElementById("pUpload").value = "";
+      document.querySelector("#adminContent form").reset();
+    }
+
+    function readUpload(input) {
+      return new Promise((resolve) => {
+        const file = input.files[0];
+        if (!file) return resolve("");
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function saveProduct(event) {
+      event.preventDefault();
+      try {
+        const uploaded = await readUpload(document.getElementById("pUpload"));
+        const id = document.getElementById("editProductId").value;
+        await api(id ? `/api/admin/products/${id}` : "/api/admin/products", {
+          method: id ? "PUT" : "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({
+            name: document.getElementById("pName").value,
+            category: document.getElementById("pCategory").value,
+            price: document.getElementById("pPrice").value,
+            stock: document.getElementById("pStock").value,
+            description: document.getElementById("pDescription").value,
+            image: uploaded || document.getElementById("pImage").value,
+            featured: document.getElementById("pFeatured").checked
+          })
+        });
+        products = await api("/api/products");
+        renderAdminProducts();
+        toast(id ? "Product updated" : "Product added");
+      } catch (e) { toast(e.message); }
+    }
+
+    async function deleteProduct(id) {
+      try {
+        await api(`/api/admin/products/${id}`, { method: "DELETE", headers: adminHeaders() });
+        products = await api("/api/products");
+        renderAdminProducts();
+        toast("Product deleted");
+      } catch (e) { toast(e.message); }
+    }
+
+    async function renderAdminOrders() {
+      try {
+        const orders = await api("/api/admin/orders", { headers: adminHeaders() });
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Orders</h3>${orders.map((o) => `
+          <div class="order-row">
+            <div class="order-id"><strong>${o.id}</strong></div>
+            <div class="order-details">
+              <strong>${money(o.total)} | ${o.paymentMethod}</strong><br>
+              <span class="muted">Phone: ${o.customer.phone}${o.customer.additionalPhone ? `, ${o.customer.additionalPhone}` : ""}</span>
+              <span class="muted">Email: ${o.customer.email || "Not provided"}</span>
+              <span class="muted">Address: ${o.customer.address}</span>
+              <span class="muted">Items: ${o.items.map((item) => `${item.name} x ${item.quantity}`).join(", ")}</span>
+              <span class="muted">Payment ref: ${o.paymentReference || "Not provided"}</span>
+            </div>
+            <div class="order-actions">
+              <select onchange="updateOrder('${o.id}', this.value, null)"><option>${o.paymentStatus}</option><option>Verified</option><option>Pending manual verification</option><option>Pay on delivery</option></select>
+              <select onchange="updateOrder('${o.id}', null, this.value)"><option>${o.orderStatus}</option><option>Packed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select>
+            </div>
+          </div>`).join("") || "<p>No orders yet.</p>"}</div>`;
+      } catch (e) { toast(e.message); }
+    }
+
+    async function updateOrder(id, paymentStatus, orderStatus) {
+      try {
+        await api(`/api/admin/orders/${id}`, {
+          method: "PUT",
+          headers: adminHeaders(),
+          body: JSON.stringify({ paymentStatus, orderStatus, trackingLabel: orderStatus })
+        });
+        toast("Order updated");
+      } catch (e) { toast(e.message); }
+    }
+
+    async function renderAdminPayments() {
+      try {
+        const payments = await api("/api/admin/payments", { headers: adminHeaders() });
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Payment History</h3>${payments.map((p) => `<p><strong>${p.orderId}</strong> ${money(p.amount)} | ${p.method} | ${p.status}</p>`).join("") || "<p>No payments yet.</p>"}</div>`;
+      } catch (e) { toast(e.message); }
+    }
+
+    async function renderAdminReturns() {
+      try {
+        const returns = await api("/api/admin/returns", { headers: adminHeaders() });
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Return/Refund Requests</h3>${returns.map((r) => `<div class="order-row"><strong>${r.orderId}</strong><span>${r.reason} | ${r.status}</span><select onchange="updateReturn('${r.id}', this.value)"><option>${r.status}</option><option>Approved</option><option>Rejected</option><option>Refunded</option></select></div>`).join("") || "<p>No requests.</p>"}</div>`;
+      } catch (e) { toast(e.message); }
+    }
+
+    async function updateReturn(id, status) {
+      try {
+        await api(`/api/admin/returns/${id}`, { method: "PUT", headers: adminHeaders(), body: JSON.stringify({ status }) });
+        toast("Return updated");
+      } catch (e) { toast(e.message); }
+    }
+
+    async function renderAdminChats() {
+      try {
+        const chats = await api("/api/admin/chats", { headers: adminHeaders() });
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Live Chat Queries</h3>${chats.map((chat) => `
+          <div class="order-row">
+            <strong>${chat.name}</strong>
+            <span>${chat.message}<br><span class="muted">${chat.phone || "No phone"} | ${chat.status} | ${dateText(chat.createdAt)}</span></span>
+            <select onchange="updateChat('${chat.id}', this.value)"><option>${chat.status}</option><option>New</option><option>Contacted</option><option>Resolved</option></select>
+          </div>`).join("") || "<p>No chat queries.</p>"}</div>`;
+      } catch (e) { toast(e.message); }
+    }
+
+    async function updateChat(id, status) {
+      try {
+        await api(`/api/admin/chats/${id}`, { method: "PUT", headers: adminHeaders(), body: JSON.stringify({ status }) });
+        toast("Chat updated");
+      } catch (e) { toast(e.message); }
+    }
+
+    function renderAdminPages() {
+      document.getElementById("adminContent").innerHTML = `
+        <form class="panel" onsubmit="savePages(event)">
+          <div class="form-grid">
+            <input class="full" id="setAboutTitle" placeholder="About title" value="${pages.aboutTitle || "About Us"}">
+            <textarea class="full" id="setAbout" placeholder="About text">${pages.about || ""}</textarea>
+            <input class="full" id="setContactTitle" placeholder="Contact title" value="${pages.contactTitle || "Contact"}">
+            <textarea class="full" id="setContactText" placeholder="Contact text">${pages.contactText || "Reach us for sizing, payment, delivery, and return/refund queries."}</textarea>
+            <textarea class="full" id="setServices" placeholder="Services">${pages.services}</textarea>
+            <input class="full" id="setQr" placeholder="QR code image URL" value="${settings.qrCode}">
+            <input class="full" id="setQrUpload" type="file" accept="image/*">
+            <input id="setPhone" placeholder="Store phone" value="${settings.storePhone}">
+            <input id="setEmail" placeholder="Store email" value="${settings.storeEmail}">
+            <button class="full">Save Settings</button>
+          </div>
+        </form>`;
+    }
+
+    async function savePages(event) {
+      event.preventDefault();
+      try {
+        const uploadedQr = await readUpload(document.getElementById("setQrUpload"));
+        const data = await api("/api/admin/settings", {
+          method: "PUT",
+          headers: adminHeaders(),
+          body: JSON.stringify({
+            pages: {
+              aboutTitle: document.getElementById("setAboutTitle").value,
+              about: document.getElementById("setAbout").value,
+              services: document.getElementById("setServices").value,
+              contactTitle: document.getElementById("setContactTitle").value,
+              contactText: document.getElementById("setContactText").value
+            },
+            settings: {
+              qrCode: uploadedQr || document.getElementById("setQr").value,
+              storePhone: document.getElementById("setPhone").value,
+              storeEmail: document.getElementById("setEmail").value
+            }
+          })
+        });
+        pages = data.pages;
+        settings = data.settings;
+        toast("Settings saved");
+      } catch (e) { toast(e.message); }
+    }
+
+    init().catch((e) => toast(e.message));
+  </script>
+</body>
+</html>
