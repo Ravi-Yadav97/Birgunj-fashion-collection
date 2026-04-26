@@ -1,21 +1,32 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
+const https = require("https");
+const http = require("http");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
-const ADMIN_PHONE = process.env.ADMIN_PHONE || "9800000000";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const ADMIN_PHONE = process.env.ADMIN_PHONE || "9744226927";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Naresh@5454";
+const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "gmail";
+const GMAIL_USER = process.env.GMAIL_USER || "";
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || "";
+const WORKER_JWT_SECRET = process.env.WORKER_JWT_SECRET || "birgunj-fashion-default-secret-change-me";
 
 app.use(cors());
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 const sessions = new Map();
+const otpStore = new Map();      // email → { otp, expiresAt }
+const otpRateLimit = new Map();  // email → [timestamp, timestamp, ...]
 
 const uid = (prefix) => `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 const now = () => new Date().toISOString();
@@ -37,6 +48,10 @@ const seedData = {
       description: "Soft embroidered kurta set designed for celebrations and family gatherings.",
       image:
         "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80",
+      extraImages: [
+        "https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=900&q=80",
+      ],
+      sizes: ["S", "M", "L", "XL"],
       stock: 18,
       featured: true,
       createdAt: now(),
@@ -49,6 +64,10 @@ const seedData = {
       description: "Everyday denim layer with a clean fit and durable stitching.",
       image:
         "https://images.unsplash.com/photo-1516257984-b1b4d707412e?auto=format&fit=crop&w=900&q=80",
+      extraImages: [
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+      ],
+      sizes: ["S", "M", "L", "XL"],
       stock: 14,
       featured: true,
       createdAt: now(),
@@ -61,6 +80,10 @@ const seedData = {
       description: "Comfortable, bright party wear made for movement and photos.",
       image:
         "https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&w=900&q=80",
+      extraImages: [
+        "https://images.unsplash.com/photo-1519238359922-989348752efb?auto=format&fit=crop&w=900&q=80",
+      ],
+      sizes: ["2-3Y", "4-5Y", "6-7Y", "8-9Y"],
       stock: 22,
       featured: true,
       createdAt: now(),
@@ -73,6 +96,10 @@ const seedData = {
       description: "Roomy daily tote with a woven texture and premium handles.",
       image:
         "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=900&q=80",
+      extraImages: [
+        "https://images.unsplash.com/photo-1523779105320-d1cd346ff52b?auto=format&fit=crop&w=900&q=80",
+      ],
+      sizes: ["Free Size"],
       stock: 20,
       featured: false,
       createdAt: now(),
@@ -113,17 +140,112 @@ async function readDb() {
   return JSON.parse(await fs.readFile(DB_FILE, "utf8"));
 }
 
-async function writeDb(db) {
-  await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2));
-}
+const writeDb = async (db) => {
+  const content = JSON.stringify(db, null, 2);
+  const handle = await fs.open(DB_FILE, "w");
+  await handle.writeFile(content, "utf-8");
+  await handle.sync();
+  await handle.close();
+  console.log(`[${now()}] Database hard-synced: ${db.products.length} products.`);
+};
 
 function cleanPhone(phone = "") {
   return String(phone).replace(/[^\d+]/g, "").trim();
 }
 
+function cleanEmail(email = "") {
+  return String(email).trim().toLowerCase();
+}
+
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function otpEmailHtml(otp) {
+  const digits = otp.split("").map(d =>
+    `<span style="display:inline-block;width:40px;height:48px;line-height:48px;text-align:center;font-size:24px;font-weight:bold;background:#f4f4f5;border:2px solid #e4e4e7;border-radius:8px;margin:0 3px;color:#18181b;font-family:monospace;">${d}</span>`
+  ).join("");
+  return `
+  <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden;">
+    <div style="background:#b42318;padding:24px 20px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:20px;letter-spacing:1px;">BIRGUNJ FASHION COLLECTION</h1>
+    </div>
+    <div style="padding:32px 24px;text-align:center;">
+      <h2 style="margin:0 0 8px;color:#18181b;font-size:22px;">Verify Your Email</h2>
+      <p style="margin:0 0 24px;color:#71717a;font-size:15px;">Use the code below to complete your login. This code expires in <strong>2 minutes</strong>.</p>
+      <div style="margin:0 0 24px;">${digits}</div>
+      <p style="margin:0;color:#a1a1aa;font-size:13px;">If you did not request this code, you can safely ignore this email.</p>
+    </div>
+    <div style="background:#fafafa;padding:16px 24px;text-align:center;border-top:1px solid #e4e4e7;">
+      <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Birgunj Fashion Collection. All rights reserved.</p>
+    </div>
+  </div>`;
+}
+
+async function sendOtpEmail(email, otp) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+  const RESEND_FROM = process.env.RESEND_FROM || "Birgunj Fashion <onboarding@resend.dev>";
+
+  // ── Option 1: Gmail SMTP via Nodemailer (primary) ──
+  if (EMAIL_PROVIDER === "gmail" && GMAIL_USER && GMAIL_APP_PASSWORD) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      });
+      await transporter.sendMail({
+        from: `"BIRGUNJ FASHION COLLECTION" <${GMAIL_USER}>`,
+        to: email,
+        subject: "Your Login OTP",
+        text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
+        html: otpEmailHtml(otp),
+      });
+      console.log(`✅ OTP email sent to ${email} via Gmail`);
+      return { sent: true };
+    } catch (error) {
+      console.error("Gmail send error:", error.message);
+      return { sent: false, error: error.message };
+    }
+  }
+
+  // ── Option 2: Resend API ──
+  if (RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM,
+          to: [email],
+          subject: "Your Login OTP",
+          text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
+          html: otpEmailHtml(otp),
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        console.error("Resend API error:", JSON.stringify(result));
+        return { sent: false, error: result.message || "Resend failed" };
+      }
+      console.log(`✅ OTP email sent to ${email} via Resend`);
+      return { sent: true };
+    } catch (error) {
+      console.error("Resend send error:", error.message);
+      return { sent: false, error: error.message };
+    }
+  }
+
+  // ── No email provider configured — FAIL (no dev mode / no console OTP) ──
+  console.error("❌ No email provider configured. Set GMAIL or RESEND credentials in .env");
+  return { sent: false, error: "Email service not configured. Please contact the store owner." };
+}
+
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, phone: user.phone, createdAt: user.createdAt };
+  return { id: user.id, email: user.email, phone: user.phone, createdAt: user.createdAt };
 }
 
 function createSession(type, subject) {
@@ -161,6 +283,7 @@ function orderTotal(items, products, method) {
       name: product.name,
       price: Number(product.price),
       quantity,
+      size: item.size || null,
       image: product.image,
       lineTotal: Number(product.price) * quantity,
     };
@@ -171,40 +294,117 @@ function orderTotal(items, products, method) {
 }
 
 app.post("/api/auth/request-otp", async (req, res) => {
-  const phone = cleanPhone(req.body.phone);
-  if (phone.length < 8) return res.status(400).json({ error: "Valid phone number required" });
+  const email = cleanEmail(req.body.email);
+  if (!validEmail(email)) return res.status(400).json({ error: "Valid email address required" });
 
-  const db = await readDb();
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
-  db.otps = db.otps.filter((record) => record.phone !== phone);
-  db.otps.push({ phone, otp, expiresAt: Date.now() + 5 * 60 * 1000, createdAt: now() });
-  await writeDb(db);
+  // ── Rate limiting: max 3 OTP requests per minute per email ──
+  const nowMs = Date.now();
+  const timestamps = otpRateLimit.get(email) || [];
+  const recentTimestamps = timestamps.filter(ts => nowMs - ts < 60_000);
+  if (recentTimestamps.length >= 3) {
+    return res.status(429).json({ error: "Too many OTP requests. Please wait 1 minute before trying again." });
+  }
+  recentTimestamps.push(nowMs);
+  otpRateLimit.set(email, recentTimestamps);
 
-  res.json({
-    message: "OTP generated. Connect an SMS gateway before production.",
-    phone,
-    demoOtp: otp,
-  });
+  // ── Generate secure 6-digit OTP ──
+  const otp = String(crypto.randomInt(100000, 999999));
+
+  // ── Store OTP in memory with 2-minute expiry ──
+  otpStore.set(email, { otp, expiresAt: nowMs + 2 * 60 * 1000 });
+
+  // ── Auto-cleanup after 2 minutes ──
+  setTimeout(() => {
+    const stored = otpStore.get(email);
+    if (stored && stored.otp === otp) otpStore.delete(email);
+  }, 2 * 60 * 1000);
+
+  // ── Send OTP via email (Gmail SMTP or Resend) ──
+  const emailResult = await sendOtpEmail(email, otp);
+  if (!emailResult.sent) {
+    otpStore.delete(email);
+    return res.status(503).json({
+      error: emailResult.error || "Could not send OTP email. Please contact the store.",
+    });
+  }
+
+  res.json({ message: "OTP sent to your email.", email });
 });
 
 app.post("/api/auth/verify-otp", async (req, res) => {
-  const phone = cleanPhone(req.body.phone);
+  const email = cleanEmail(req.body.email);
   const otp = String(req.body.otp || "").trim();
-  const db = await readDb();
-  const record = db.otps.find((entry) => entry.phone === phone && entry.otp === otp);
-  if (!record || record.expiresAt < Date.now()) {
-    return res.status(400).json({ error: "Invalid or expired OTP" });
+
+  // ── Validate against in-memory OTP store ──
+  const record = otpStore.get(email);
+  if (!record) {
+    return res.status(400).json({ error: "No OTP found. Please request a new one." });
+  }
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: "OTP expired. Please request a new one." });
+  }
+  if (record.otp !== otp) {
+    return res.status(400).json({ error: "Invalid OTP. Please check and try again." });
   }
 
-  let user = db.users.find((entry) => entry.phone === phone);
+  // ── OTP verified — delete it immediately ──
+  otpStore.delete(email);
+
+  // ── Find or create user in DB ──
+  const db = await readDb();
+  let user = db.users.find((entry) => entry.email === email);
   if (!user) {
-    user = { id: uid("usr"), phone, createdAt: now() };
+    user = { id: uid("usr"), email, createdAt: now() };
     db.users.push(user);
+    await writeDb(db);
   }
-  db.otps = db.otps.filter((entry) => entry.phone !== phone);
-  await writeDb(db);
 
   res.json({ token: createSession("customer", user.id), user: publicUser(user) });
+});
+
+// Exchange a Cloudflare Worker JWT for a backend session
+app.post("/api/auth/exchange-token", async (req, res) => {
+  const workerToken = (req.body.token || "").trim();
+  if (!workerToken) return res.status(400).json({ error: "Token required" });
+
+  try {
+    // Verify HMAC-SHA256 JWT from Cloudflare Worker
+    const parts = workerToken.split(".");
+    if (parts.length !== 3) throw new Error("Malformed token");
+
+    const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64").toString());
+
+    // Check expiry
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return res.status(401).json({ error: "Token expired" });
+    }
+
+    // Verify signature
+    const hmac = crypto.createHmac("sha256", WORKER_JWT_SECRET);
+    hmac.update(parts[0] + "." + parts[1]);
+    const expectedSig = hmac.digest("base64url");
+    if (expectedSig !== parts[2]) {
+      return res.status(401).json({ error: "Invalid token signature" });
+    }
+
+    const email = cleanEmail(payload.email);
+    if (!validEmail(email)) return res.status(400).json({ error: "Invalid email in token" });
+
+    // Find or create user
+    const db = await readDb();
+    let user = db.users.find((u) => u.email === email);
+    if (!user) {
+      user = { id: uid("usr"), email, createdAt: now() };
+      db.users.push(user);
+      await writeDb(db);
+    }
+
+    res.json({ token: createSession("customer", user.id), user: publicUser(user) });
+  } catch (e) {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
 });
 
 app.post("/api/admin/login", (req, res) => {
@@ -234,6 +434,8 @@ app.post("/api/admin/products", requireAdmin, async (req, res) => {
     price,
     description: description || "",
     image,
+    extraImages: req.body.extraImages || [],
+    sizes: Array.isArray(req.body.sizes) ? req.body.sizes : [],
     stock: Number.isFinite(stock) ? stock : 0,
     featured: Boolean(featured),
     createdAt: now(),
@@ -244,6 +446,11 @@ app.post("/api/admin/products", requireAdmin, async (req, res) => {
 });
 
 app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  console.log("=== PUT /api/admin/products/:id ===");
+  console.log("Product ID:", req.params.id);
+  console.log("Body image:", req.body.image ? req.body.image.substring(0, 60) + "... (" + req.body.image.length + " chars)" : "EMPTY/UNDEFINED");
+  console.log("Body extraImages:", Array.isArray(req.body.extraImages) ? req.body.extraImages.map((img, i) => "extra[" + i + "]: " + (img ? img.substring(0, 60) + "... (" + img.length + " chars)" : "EMPTY")) : "NOT AN ARRAY: " + typeof req.body.extraImages);
+  console.log("Body keys:", Object.keys(req.body));
   const db = await readDb();
   const product = db.products.find((entry) => entry.id === req.params.id);
   if (!product) return res.status(404).json({ error: "Product not found" });
@@ -253,6 +460,8 @@ app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
     price: req.body.price !== undefined ? Number(req.body.price) : product.price,
     description: req.body.description ?? product.description,
     image: req.body.image ?? product.image,
+    extraImages: req.body.extraImages !== undefined ? req.body.extraImages : (product.extraImages || []),
+    sizes: req.body.sizes !== undefined ? req.body.sizes : (product.sizes || []),
     stock: req.body.stock !== undefined ? Number(req.body.stock) : product.stock,
     featured: req.body.featured !== undefined ? Boolean(req.body.featured) : product.featured,
     updatedAt: now(),
@@ -293,6 +502,18 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       email: String(req.body.customer?.email || "").trim(),
       address: String(req.body.customer?.address || "").trim(),
     };
+    const location = req.body.customer?.location;
+    if (location && Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))) {
+      const latitude = Number(location.latitude);
+      const longitude = Number(location.longitude);
+      customer.location = {
+        latitude,
+        longitude,
+        accuracy: Number.isFinite(Number(location.accuracy)) ? Number(location.accuracy) : null,
+        mapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`,
+        capturedAt: now(),
+      };
+    }
     if (!customer.phone || !customer.address) {
       return res.status(400).json({ error: "Phone and address are required" });
     }
@@ -435,5 +656,22 @@ app.get("*", (_req, res) => {
 });
 
 ensureDb().then(() => {
-  app.listen(PORT, () => console.log(`BIRGUNJ FASHION COLLECTION running at http://localhost:${PORT}`));
+  const SSL_KEY_PATH = path.join(__dirname, "server.key");
+  const SSL_CERT_PATH = path.join(__dirname, "server.cert");
+  
+  if (fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
+    const options = {
+      key: fsSync.readFileSync(SSL_KEY_PATH),
+      cert: fsSync.readFileSync(SSL_CERT_PATH),
+    };
+    https.createServer(options, app).listen(PORT, "0.0.0.0", () => {
+      console.log(`BIRGUNJ FASHION COLLECTION running securely at https://localhost:${PORT}`);
+      console.log(`For local network, use https://<YOUR-IP>:${PORT}`);
+    });
+  } else {
+    http.createServer(app).listen(PORT, "0.0.0.0", () => {
+      console.log(`BIRGUNJ FASHION COLLECTION running at http://localhost:${PORT}`);
+      console.log(`NOTE: GPS location requires HTTPS. Generate SSL certs (server.key, server.cert) in the backend directory to enable it.`);
+    });
+  }
 });

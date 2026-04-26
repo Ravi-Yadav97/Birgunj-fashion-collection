@@ -168,6 +168,13 @@
       .admin-row > :last-child { grid-column: 1 / -1; }
       .button-row { grid-template-columns: 1fr; }
     }
+    .admin-image-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px; }
+    .admin-image-row > div { border: 1px solid var(--line); padding: 8px; border-radius: 6px; }
+    .img-preview { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; margin-top: 5px; background: #f0f0f0; display: block; }
+    .admin-live-preview { width: 150px; aspect-ratio: 4/5; border: 2px dashed var(--line); border-radius: 8px; overflow: hidden; margin: 0 auto 15px; position: relative; }
+    .slider-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    .product-slider { display: flex; transition: transform 0.4s ease-in-out; height: 100%; width: 100%; }
+    .product-slider img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; }
   </style>
 </head>
 <body>
@@ -190,8 +197,8 @@
 
       <div id="adminLogin" class="panel">
         <div class="form-grid">
-          <input id="adminPhone" placeholder="Admin phone" value="9800000000" />
-          <input id="adminPassword" type="password" placeholder="Password" value="admin123" />
+          <input id="adminPhone" placeholder="Admin phone" autocomplete="off" />
+          <input id="adminPassword" type="password" placeholder="Password" autocomplete="new-password" />
           <button class="full" onclick="adminLogin()">Login</button>
         </div>
       </div>
@@ -237,7 +244,10 @@
     }
 
     async function init() {
-      const [productData, settingsData] = await Promise.all([api("/api/products"), api("/api/settings")]);
+      const [productData, settingsData] = await Promise.all([
+        api("/api/products?t=" + Date.now()), 
+        api("/api/settings?t=" + Date.now())
+      ]);
       products = productData;
       settings = settingsData.settings;
       pages = settingsData.pages;
@@ -287,11 +297,21 @@
       if (name === "pages") renderAdminPages();
     }
 
+    // Central image store — one entry per slot [0]=primary,[1]=extra1,[2]=extra2,[3]=extra3
+    const _imgData = { 0: "", 1: "", 2: "", 3: "" };
+
     function renderAdminProducts() {
       document.getElementById("adminContent").innerHTML = `
         <div class="two-col">
           <form class="panel" onsubmit="saveProduct(event)">
             <h3 id="productFormTitle">Add Product</h3>
+            <div class="admin-live-preview" id="adminSliderPrev">
+              <div class="slider-container">
+                <div class="product-slider" id="productSliderAdmin" data-index="0" data-count="1">
+                  <img id="adminPrevImg" src="" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+              </div>
+            </div>
             <div class="form-grid">
               <input type="hidden" id="editProductId">
               <input id="pName" placeholder="Product name" required>
@@ -299,10 +319,53 @@
               <input id="pPrice" type="number" placeholder="Price" required>
               <input id="pStock" type="number" placeholder="Stock" value="10">
               <textarea class="full" id="pDescription" placeholder="Description"></textarea>
-              <input class="full" id="pImage" placeholder="Image URL or upload below">
-              <input class="full" id="pUpload" type="file" accept="image/*">
+              
+              <div class="full" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <strong>Product Images</strong>
+                <button type="button" class="danger" style="padding:4px 12px;" onclick="clearAllExtras()">Clear All Extra Slots</button>
+              </div>
+              <div class="full admin-image-row">
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Primary Image</label>
+                    <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(0,'pImage','pUpload')">Clear</button>
+                  </div>
+                  <input id="pImage" placeholder="URL">
+                  <input id="pUpload" type="file" accept="image/*" onchange="previewImg(this, 0)">
+                  <img id="prev1" class="img-preview">
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Extra 1</label>
+                    <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(1,'pImage2','pUpload2')">Clear</button>
+                  </div>
+                  <input id="pImage2" placeholder="URL">
+                  <input id="pUpload2" type="file" accept="image/*" onchange="previewImg(this, 1)">
+                  <img id="prev2" class="img-preview">
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Extra 2</label>
+                    <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(2,'pImage3','pUpload3')">Clear</button>
+                  </div>
+                  <input id="pImage3" placeholder="URL">
+                  <input id="pUpload3" type="file" accept="image/*" onchange="previewImg(this, 2)">
+                  <img id="prev3" class="img-preview">
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Extra 3</label>
+                    <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(3,'pImage4','pUpload4')">Clear</button>
+                  </div>
+                  <input id="pImage4" placeholder="URL">
+                  <input id="pUpload4" type="file" accept="image/*" onchange="previewImg(this, 3)">
+                  <img id="prev4" class="img-preview">
+                </div>
+              </div>
+
+              <input class="full" id="pSizes" placeholder="Available Sizes (comma-separated, e.g., S, M, L)" value="S, M, L, XL">
               <label class="full"><input id="pFeatured" type="checkbox" style="width:auto"> Featured</label>
-              <button class="full">Add Product</button>
+              <button class="full">Save Product</button>
               <button type="button" class="full secondary" onclick="resetProductForm()">Clear Form</button>
             </div>
           </form>
@@ -323,49 +386,177 @@
       document.getElementById("pPrice").value = p.price;
       document.getElementById("pStock").value = p.stock;
       document.getElementById("pDescription").value = p.description;
-      document.getElementById("pImage").value = p.image;
+      document.getElementById("pSizes").value = (p.sizes || []).join(", ");
       document.getElementById("pFeatured").checked = Boolean(p.featured);
+
+      // Store image data in JS variables — single source of truth
+      _imgData[0] = p.image || "";
+      _imgData[1] = p.extraImages?.[0] || "";
+      _imgData[2] = p.extraImages?.[1] || "";
+      _imgData[3] = p.extraImages?.[2] || "";
+
+      // Clear all file inputs so no stale file reference lingers
+      document.getElementById("pUpload").value = "";
+      document.getElementById("pUpload2").value = "";
+      document.getElementById("pUpload3").value = "";
+      document.getElementById("pUpload4").value = "";
+
+      // Populate URL fields only for http URLs
+      document.getElementById("pImage").value = _imgData[0].startsWith("http") ? _imgData[0] : "";
+      document.getElementById("pImage2").value = _imgData[1].startsWith("http") ? _imgData[1] : "";
+      document.getElementById("pImage3").value = _imgData[2].startsWith("http") ? _imgData[2] : "";
+      document.getElementById("pImage4").value = _imgData[3].startsWith("http") ? _imgData[3] : "";
+
+      // Update individual slot preview images
+      document.getElementById("prev1").src = _imgData[0] || "";
+      document.getElementById("prev2").src = _imgData[1] || "";
+      document.getElementById("prev3").src = _imgData[2] || "";
+      document.getElementById("prev4").src = _imgData[3] || "";
+
+      refreshAdminSlider();
+      document.getElementById("productFormTitle").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function previewImg(input, slotIndex) {
+      // slotIndex: 0=primary,1=extra1,2=extra2,3=extra3
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        const idx = parseInt(slotIndex, 10);
+        reader.onload = (e) => {
+          _imgData[idx] = e.target.result;
+          // Also update the individual slot preview image
+          const prevIds = ["prev1", "prev2", "prev3", "prev4"];
+          const prevEl = document.getElementById(prevIds[idx]);
+          if (prevEl) prevEl.src = e.target.result;
+          refreshAdminSlider();
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function refreshAdminSlider() {
+      const imgs = [_imgData[0], _imgData[1], _imgData[2], _imgData[3]].filter(Boolean);
+      const container = document.getElementById("productSliderAdmin");
+      if (!container) return;
+      container.setAttribute("data-count", imgs.length || 1);
+      container.innerHTML = (imgs.length ? imgs : [""]).map(src => `<img src="${src}" style="width:100%;height:100%;object-fit:cover;">`).join("");
+      setSliderAdmin(0);
+    }
+
+    function setSliderAdmin(idx) {
+      const slider = document.getElementById("productSliderAdmin");
+      if (!slider) return;
+      slider.setAttribute("data-index", idx);
+      slider.style.transform = `translateX(-${idx * 100}%)`;
     }
 
     function resetProductForm() {
       document.getElementById("productFormTitle").textContent = "Add Product";
       document.getElementById("editProductId").value = "";
+      // Clear JS image store
+      _imgData[0] = ""; _imgData[1] = ""; _imgData[2] = ""; _imgData[3] = "";
       document.getElementById("pUpload").value = "";
+      document.getElementById("pUpload2").value = "";
+      document.getElementById("pUpload3").value = "";
+      document.getElementById("pUpload4").value = "";
+      document.getElementById("pImage").value = "";
+      document.getElementById("pImage2").value = "";
+      document.getElementById("pImage3").value = "";
+      document.getElementById("pImage4").value = "";
+      // Clear individual previews
+      ["prev1", "prev2", "prev3", "prev4"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.removeAttribute("src");
+      });
+      document.getElementById("pSizes").value = "S, M, L, XL";
       document.querySelector("#adminContent form").reset();
+      document.getElementById("pSizes").value = "S, M, L, XL";
+      refreshAdminSlider();
     }
 
-    function readUpload(input) {
-      return new Promise((resolve) => {
-        const file = input.files[0];
-        if (!file) return resolve("");
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
+    function clearSlot(slotIndex, urlId, fileId) {
+      const idx = parseInt(slotIndex, 10);
+      _imgData[idx] = "";
+      if (urlId) document.getElementById(urlId).value = "";
+      if (fileId) document.getElementById(fileId).value = "";
+      // Clear the individual slot preview image
+      const prevIds = ["prev1", "prev2", "prev3", "prev4"];
+      const prevEl = document.getElementById(prevIds[idx]);
+      if (prevEl) prevEl.removeAttribute("src");
+      refreshAdminSlider();
+    }
+
+    function clearAllExtras() {
+      clearSlot(1, 'pImage2', 'pUpload2');
+      clearSlot(2, 'pImage3', 'pUpload3');
+      clearSlot(3, 'pImage4', 'pUpload4');
+      toast("All extra image slots cleared!");
     }
 
     async function saveProduct(event) {
       event.preventDefault();
+      const btn = event.target.querySelector("button");
+      const originalText = btn.textContent;
       try {
-        const uploaded = await readUpload(document.getElementById("pUpload"));
+        btn.disabled = true;
+        btn.textContent = "Saving... Please wait";
+
+        // Helper: read file input as base64, or return empty string
+        const readFile = (fileInputId) => new Promise((resolve) => {
+          const input = document.getElementById(fileInputId);
+          if (!input || !input.files || !input.files[0]) return resolve("");
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(input.files[0]);
+        });
+
+        // For each slot: new file upload wins, then URL input, then previously loaded data
+        const getSlot = async (fileInputId, urlInputId, slotIndex) => {
+          const fromFile = await readFile(fileInputId);
+          if (fromFile) return fromFile;
+          const urlEl = document.getElementById(urlInputId);
+          if (urlEl && urlEl.value.trim()) return urlEl.value.trim();
+          return _imgData[slotIndex] || "";
+        };
+
+        const i1 = await getSlot("pUpload",  "pImage",  0);
+        const i2 = await getSlot("pUpload2", "pImage2", 1);
+        const i3 = await getSlot("pUpload3", "pImage3", 2);
+        const i4 = await getSlot("pUpload4", "pImage4", 3);
+
+        const extraImages = [i2, i3, i4].filter(Boolean);
+
         const id = document.getElementById("editProductId").value;
+        const payload = {
+          name: document.getElementById("pName").value,
+          category: document.getElementById("pCategory").value,
+          price: document.getElementById("pPrice").value,
+          stock: document.getElementById("pStock").value,
+          description: document.getElementById("pDescription").value,
+          image: i1,
+          extraImages: extraImages,
+          sizes: document.getElementById("pSizes").value.split(",").map(s => s.trim()).filter(Boolean),
+          featured: document.getElementById("pFeatured").checked
+        };
+
         await api(id ? `/api/admin/products/${id}` : "/api/admin/products", {
           method: id ? "PUT" : "POST",
           headers: adminHeaders(),
-          body: JSON.stringify({
-            name: document.getElementById("pName").value,
-            category: document.getElementById("pCategory").value,
-            price: document.getElementById("pPrice").value,
-            stock: document.getElementById("pStock").value,
-            description: document.getElementById("pDescription").value,
-            image: uploaded || document.getElementById("pImage").value,
-            featured: document.getElementById("pFeatured").checked
-          })
+          body: JSON.stringify(payload)
         });
-        products = await api("/api/products");
+
+        await new Promise(r => setTimeout(r, 400));
+        products = await api("/api/products?t=" + Date.now());
         renderAdminProducts();
-        toast(id ? "Product updated" : "Product added");
-      } catch (e) { toast(e.message); }
+        resetProductForm();
+        toast(`${id ? "Updated" : "Added"}! Images saved: ${extraImages.length + 1}`);
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     }
 
     async function deleteProduct(id) {
@@ -388,6 +579,7 @@
               <span class="muted">Phone: ${o.customer.phone}${o.customer.additionalPhone ? `, ${o.customer.additionalPhone}` : ""}</span>
               <span class="muted">Email: ${o.customer.email || "Not provided"}</span>
               <span class="muted">Address: ${o.customer.address}</span>
+              <span class="muted">GPS: ${o.customer.location ? `<a href="${o.customer.location.mapUrl}" target="_blank" rel="noopener">Open customer location</a>` : "Not provided"}</span>
               <span class="muted">Items: ${o.items.map((item) => `${item.name} x ${item.quantity}`).join(", ")}</span>
               <span class="muted">Payment ref: ${o.paymentReference || "Not provided"}</span>
             </div>

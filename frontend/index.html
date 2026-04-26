@@ -71,7 +71,11 @@
       gap: 10px;
       font-weight: 900;
       letter-spacing: 0;
+      color: var(--ink);
+      text-decoration: none;
+      cursor: pointer;
     }
+    .brand:hover { opacity: 0.86; }
     .mark {
       width: 40px;
       height: 40px;
@@ -212,10 +216,31 @@
     .qty button { width: 34px; height: 34px; min-height: 34px; padding: 0; }
     .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .detail-layout { display: grid; grid-template-columns: minmax(220px, 1fr) 1fr; gap: 18px; align-items: start; }
-    .detail-layout img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; }
+    .detail-layout > img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; }
+    .slider-container { position: relative; width: 100%; aspect-ratio: 4/5; overflow: hidden; border-radius: 8px; }
+    .product-slider { display: flex; transition: transform 0.4s ease-in-out; height: 100%; }
+    .product-slider img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; }
+    .slider-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); color: var(--ink); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 10; transition: background 0.2s; }
+    .slider-btn:hover { background: #fff; }
+    .slider-btn.left { left: 10px; }
+    .slider-btn.right { right: 10px; }
+    .slider-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 11; }
+    .dot { width: 8px; height: 8px; background: rgba(255,255,255,0.5); border-radius: 50%; cursor: pointer; }
+    .dot.active { background: #fff; transform: scale(1.2); }
     .tracking { display: grid; gap: 8px; margin: 12px 0; }
     .tracking span { display: block; border-left: 3px solid var(--line); padding: 6px 0 6px 12px; color: var(--muted); }
     .tracking span.done { border-left-color: var(--green); color: var(--ink); font-weight: 750; }
+    .admin-image-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px; }
+    .admin-image-row > div { border: 1px solid var(--line); padding: 8px; border-radius: 6px; }
+    .img-preview { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; margin-top: 5px; background: #f0f0f0; display: block; }
+    .admin-live-preview { width: 150px; aspect-ratio: 4/5; border: 2px dashed var(--line); border-radius: 8px; overflow: hidden; margin: 0 auto 15px; position: relative; }
+    .location-tools {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .location-tools .muted { overflow-wrap: anywhere; }
     .totals { display: grid; gap: 8px; margin-top: 14px; }
     .totals div { display: flex; justify-content: space-between; gap: 10px; }
     .total-line { font-size: 20px; font-weight: 950; }
@@ -280,6 +305,7 @@
       .cart-row, .admin-row, .order-row { grid-template-columns: 50px 1fr; }
       .cart-row > :last-child, .admin-row > :last-child, .order-row > :last-child { grid-column: 1 / -1; }
       .detail-layout, .button-row { grid-template-columns: 1fr; }
+      .location-tools { grid-template-columns: 1fr; }
       section { padding: 42px 14px; }
     }
   </style>
@@ -287,7 +313,7 @@
 <body>
   <header>
     <nav class="nav">
-      <div class="brand"><span class="mark">BF</span><span>BIRGUNJ FASHION COLLECTION</span></div>
+      <a class="brand" href="#home" onclick="goHome(event)"><span class="mark">BF</span><span>BIRGUNJ FASHION COLLECTION</span></a>
       <div class="navlinks">
         <a href="#home">Home</a>
         <a href="#products">Products</a>
@@ -406,15 +432,30 @@
   </div>
 
   <div class="modal" id="authModal">
-    <div class="modal-box">
-      <div class="modal-head"><h2>Customer Login</h2><button class="icon secondary" onclick="closeModal('authModal')">x</button></div>
-      <div class="form-grid">
-        <input id="authPhone" placeholder="Mobile number" />
-        <button onclick="requestOtp()">Send OTP</button>
-        <input id="authOtp" placeholder="Enter OTP" />
-        <button onclick="verifyOtp()">Verify</button>
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-head"><h2>Login</h2><button class="icon secondary" onclick="closeModal('authModal')">x</button></div>
+      <!-- Step 1: Email -->
+      <div id="authStep1">
+        <p class="muted" style="margin:0 0 14px;">Enter your email to receive a 6-digit verification code.</p>
+        <input id="authEmail" type="email" placeholder="you@example.com" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();requestOtp();}" />
+        <button style="width:100%;" id="sendOtpBtn" onclick="requestOtp()">Send OTP</button>
+        <p class="muted" id="otpHint" style="margin-top:10px;text-align:center;"></p>
       </div>
-      <p class="muted" id="otpHint"></p>
+      <!-- Step 2: OTP -->
+      <div id="authStep2" class="hidden">
+        <p class="muted" style="margin:0 0 6px;">We sent a code to <strong id="otpSentEmail"></strong></p>
+        <div style="display:flex;gap:8px;justify-content:center;margin:18px 0;" id="otpDigitRow">
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+        </div>
+        <button style="width:100%;" id="verifyOtpBtn" onclick="verifyOtp()">Verify & Login</button>
+        <p class="muted" style="margin-top:12px;text-align:center;" id="otpTimer"></p>
+        <p style="margin-top:8px;text-align:center;"><a href="#" onclick="event.preventDefault();backToEmail();" style="color:var(--brand);font-weight:600;text-decoration:none;">← Change email</a></p>
+      </div>
     </div>
   </div>
 
@@ -434,6 +475,10 @@
           </select>
           <input id="paymentReference" placeholder="Payment reference / note for online payment" />
           <textarea class="full" id="coAddress" placeholder="Delivery address" required></textarea>
+          <div class="full location-tools">
+            <button type="button" class="secondary" onclick="captureLocation()">Use GPS Location</button>
+            <span class="muted" id="locationStatus">GPS location not added.</span>
+          </div>
           <div class="full hidden" id="qrBox">
             <p><strong>Scan QR and complete payment.</strong></p>
             <img id="qrImage" alt="QR payment code" style="width:180px;height:180px;border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff;">
@@ -467,6 +512,7 @@
     let cart = JSON.parse(localStorage.getItem("bfc_cart") || "[]");
     let customerToken = localStorage.getItem("bfc_customer_token") || "";
     let adminToken = localStorage.getItem("bfc_admin_token") || "";
+    let customerLocation = null;
 
     const money = (n) => `Rs. ${Number(n || 0).toLocaleString("en-IN")}`;
     const dateText = (date) => new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
@@ -488,9 +534,20 @@
       return data;
     }
 
+    function goHome(event) {
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      history.replaceState(null, "", "#home");
+    }
+
     async function init() {
-      const [productData, settingsData] = await Promise.all([api("/api/products"), api("/api/settings")]);
+      const [productData, settingsData] = await Promise.all([
+        api("/api/products?t=" + Date.now()), 
+        api("/api/settings?t=" + Date.now())
+      ]);
       products = productData;
+      cart = cart.filter((item) => products.some((p) => p.id === item.productId));
+      localStorage.setItem("bfc_cart", JSON.stringify(cart));
       settings = settingsData.settings;
       pages = settingsData.pages;
       document.getElementById("aboutTitle").textContent = pages.aboutTitle || "About Us";
@@ -508,16 +565,12 @@
     }
 
     function renderCategories() {
-      const images = {
-        Women: "url('https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=900&q=80')",
-        Men: "url('https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80')",
-        Kids: "url('https://images.unsplash.com/photo-1519238359922-989348752efb?auto=format&fit=crop&w=900&q=80')",
-        Accessories: "url('https://images.unsplash.com/photo-1523779105320-d1cd346ff52b?auto=format&fit=crop&w=900&q=80')"
-      };
       const cats = [...new Set(products.map((p) => p.category))];
-      document.getElementById("categories").innerHTML = cats.map((cat) =>
-        `<div class="category" style="--image:${images[cat] || images.Accessories}" onclick="filterCategory('${cat}')"><strong>${cat}</strong></div>`
-      ).join("");
+      document.getElementById("categories").innerHTML = cats.map((cat) => {
+        const catProduct = products.find(p => p.category === cat);
+        const imgUrl = catProduct && catProduct.image ? catProduct.image : 'https://images.unsplash.com/photo-1523779105320-d1cd346ff52b?auto=format&fit=crop&w=900&q=80';
+        return `<div class="category" style="--image:url('${imgUrl}')" onclick="filterCategory('${cat}')"><strong>${cat}</strong></div>`;
+      }).join("");
     }
 
     function renderFilters() {
@@ -548,7 +601,9 @@
             <div class="price">${money(p.price)}</div>
             <div class="button-row">
               <button class="secondary" onclick="showProduct('${p.id}')">Details</button>
-              <button onclick="addToCart('${p.id}')">Add to Cart</button>
+              ${(p.sizes && p.sizes.length > 0) || (p.category && (p.category.toLowerCase().includes('shirt') || p.category.toLowerCase().includes('pant') || p.category.toLowerCase().includes('coat') || p.category.toLowerCase().includes('saree'))) 
+                ? `<button onclick="showProduct('${p.id}')">Select Options</button>` 
+                : `<button onclick="addToCart('${p.id}')">Add to Cart</button>`}
             </div>
           </div>
         </article>
@@ -558,19 +613,90 @@
     function showProduct(id) {
       const p = products.find((product) => product.id === id);
       if (!p) return;
+      
+      let imageHtml = `<img src="${p.image}" alt="${p.name}" style="width:100%; border-radius:8px; aspect-ratio:4/5; object-fit:cover;">`;
+      if (p.extraImages && p.extraImages.length > 0) {
+        const allImages = [p.image, ...p.extraImages];
+        imageHtml = `
+          <div class="slider-container">
+            <div class="product-slider" id="productSlider" data-index="0" data-count="${allImages.length}">
+              ${allImages.map(img => `<img src="${img}" alt="${p.name}">`).join("")}
+            </div>
+            <button class="slider-btn left" onclick="moveSlider(-1)">❮</button>
+            <button class="slider-btn right" onclick="moveSlider(1)">❯</button>
+            <div class="slider-dots">
+              ${allImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}" onclick="setSlider(${i})"></div>`).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      let sizesHtml = "";
+      const displaySizes = (p.sizes && p.sizes.length > 0) ? p.sizes : ["S", "M", "L", "XL"];
+      const needsSizes = (p.sizes && p.sizes.length > 0) || (p.category && (p.category.toLowerCase().includes('shirt') || p.category.toLowerCase().includes('pant') || p.category.toLowerCase().includes('coat') || p.category.toLowerCase().includes('saree')));
+      
+      if (needsSizes) {
+        sizesHtml = `
+          <div style="margin: 12px 0;">
+            <label for="productSizeSelector"><strong>Select Size:</strong></label>
+            <select id="productSizeSelector" style="margin-top: 4px; padding: 8px; border-radius: 4px; border: 1px solid var(--line); width: 100%;">
+              <option value="">-- Choose a size --</option>
+              ${displaySizes.map(s => `<option value="${s}">${s}</option>`).join("")}
+            </select>
+          </div>
+        `;
+      }
+
       document.getElementById("productDetails").innerHTML = `
         <div class="detail-layout">
-          <img src="${p.image}" alt="${p.name}">
+          ${imageHtml}
           <div>
             <span class="badge">${p.category}</span>
             <h2>${p.name}</h2>
             <p class="muted">${p.description}</p>
+            ${sizesHtml}
             <p><strong>Stock:</strong> ${p.stock} available</p>
             <div class="price">${money(p.price)}</div>
-            <button style="margin-top:14px" onclick="addToCart('${p.id}'); closeModal('productModal'); openCart()">Add to Cart</button>
+            <button style="margin-top:14px" onclick="addToCartFromModal('${p.id}')">Add to Cart</button>
           </div>
         </div>`;
       document.getElementById("productModal").classList.add("open");
+    }
+
+    function moveSlider(delta) {
+      const slider = document.getElementById("productSlider");
+      if (!slider) return;
+      let idx = parseInt(slider.getAttribute("data-index"));
+      const count = parseInt(slider.getAttribute("data-count"));
+      idx = (idx + delta + count) % count;
+      setSlider(idx);
+    }
+
+    function setSlider(idx) {
+      const slider = document.getElementById("productSlider");
+      if (!slider) return;
+      slider.setAttribute("data-index", idx);
+      slider.style.transform = `translateX(-${idx * 100}%)`;
+      const dots = document.querySelectorAll(".dot");
+      dots.forEach((d, i) => d.classList.toggle("active", i === idx));
+    }
+
+    function addToCartFromModal(id) {
+      const p = products.find((product) => product.id === id);
+      let size = null;
+      if (p && p.sizes && p.sizes.length > 0) {
+        const selector = document.getElementById("productSizeSelector");
+        if (!selector || !selector.value) {
+          toast("Please choose a SIZE before adding to cart!");
+          selector.style.borderColor = "red";
+          selector.focus();
+          return;
+        }
+        size = selector.value;
+      }
+      addToCart(id, size);
+      closeModal('productModal');
+      openCart();
     }
 
     function saveCart() {
@@ -582,16 +708,16 @@
       document.getElementById("cartCount").textContent = cart.reduce((sum, item) => sum + item.quantity, 0);
     }
 
-    function addToCart(id) {
-      const item = cart.find((entry) => entry.productId === id);
+    function addToCart(id, size = null) {
+      const item = cart.find((entry) => entry.productId === id && entry.size === size);
       if (item) item.quantity += 1;
-      else cart.push({ productId: id, quantity: 1 });
+      else cart.push({ productId: id, quantity: 1, size });
       saveCart();
       toast("Added to cart");
     }
 
-    function changeQty(id, delta) {
-      const item = cart.find((entry) => entry.productId === id);
+    function changeQty(id, size, delta) {
+      const item = cart.find((entry) => entry.productId === id && entry.size === size);
       if (!item) return;
       item.quantity += delta;
       cart = cart.filter((entry) => entry.quantity > 0);
@@ -630,8 +756,8 @@
         if (!p) return "";
         return `<div class="cart-row">
           <img src="${p.image}" alt="${p.name}">
-          <div><strong>${p.name}</strong><br><span class="muted">${money(p.price)}</span></div>
-          <div class="qty"><button type="button" onclick="changeQty('${p.id}', -1)">-</button><strong>${item.quantity}</strong><button type="button" onclick="changeQty('${p.id}', 1)">+</button></div>
+          <div><strong>${p.name}${item.size ? ` - Size: ${item.size}` : ''}</strong><br><span class="muted">${money(p.price)}</span></div>
+          <div class="qty"><button type="button" onclick="changeQty('${p.id}', ${item.size ? `'${item.size}'` : 'null'}, -1)">-</button><strong>${item.quantity}</strong><button type="button" onclick="changeQty('${p.id}', ${item.size ? `'${item.size}'` : 'null'}, 1)">+</button></div>
         </div>`;
       }).join("") + `
         <div class="totals">
@@ -646,30 +772,231 @@
     function openAuth() { document.getElementById("authModal").classList.add("open"); }
     function closeModal(id) { document.getElementById(id).classList.remove("open"); }
 
-    async function requestOtp() {
-      try {
-        const data = await api("/api/auth/request-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: document.getElementById("authPhone").value })
+    async function reverseGeocodeLocation(latitude, longitude) {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error("Address lookup failed");
+      const data = await res.json();
+      return data.display_name || "";
+    }
+
+    async function captureLocation() {
+      const status = document.getElementById("locationStatus");
+      const address = document.getElementById("coAddress");
+      
+      status.textContent = "Finding your location...";
+
+      const fallbackToIP = async () => {
+        try {
+          status.textContent = "Estimating location via network...";
+          const res = await fetch("https://ipapi.co/json/");
+          const data = await res.json();
+          if (data.error) throw new Error("IP location failed");
+          customerLocation = {
+            latitude: data.latitude,
+            longitude: data.longitude,
+            accuracy: 1000,
+          };
+          const parts = [data.city, data.region, data.country_name, data.postal ? `Pin: ${data.postal}` : null].filter(Boolean);
+          address.value = parts.join(", ");
+          status.textContent = "Approximate location via network. For exact location, use HTTPS link.";
+        } catch (err) {
+          status.textContent = "Could not get location. Please allow location access or enter address manually.";
+        }
+      };
+
+      if (!navigator.geolocation || (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')) {
+        return fallbackToIP();
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          customerLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: Math.round(position.coords.accuracy || 0),
+          };
+          status.textContent = "Finding full address...";
+          try {
+            const fullAddress = await reverseGeocodeLocation(customerLocation.latitude, customerLocation.longitude);
+            address.value = fullAddress || `GPS location: ${customerLocation.latitude}, ${customerLocation.longitude}`;
+            status.textContent = "GPS address added to delivery address.";
+          } catch {
+            address.value = `GPS location: ${customerLocation.latitude}, ${customerLocation.longitude}`;
+            status.textContent = "GPS added as coordinates. Please add nearby landmark details.";
+          }
+        },
+        (error) => {
+          fallbackToIP();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    let otpCountdown = null;
+
+    function initOtpDigitInputs() {
+      const digits = document.querySelectorAll('.otp-digit');
+      digits.forEach((inp, i) => {
+        inp.value = '';
+        inp.addEventListener('input', () => {
+          inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
+          if (inp.value && i < digits.length - 1) digits[i + 1].focus();
+          if (i === digits.length - 1 && inp.value) verifyOtp();
         });
-        document.getElementById("otpHint").textContent = `Demo OTP: ${data.demoOtp}`;
-      } catch (e) { toast(e.message); }
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !inp.value && i > 0) digits[i - 1].focus();
+        });
+        inp.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+          text.split('').forEach((ch, j) => { if (digits[i + j]) digits[i + j].value = ch; });
+          if (digits[Math.min(i + text.length, digits.length - 1)]) digits[Math.min(i + text.length, digits.length - 1)].focus();
+          if (text.length === 6) verifyOtp();
+        });
+      });
+    }
+
+    function startOtpTimer() {
+      let seconds = 120;
+      const el = document.getElementById('otpTimer');
+      clearInterval(otpCountdown);
+      otpCountdown = setInterval(() => {
+        seconds--;
+        if (seconds <= 0) { clearInterval(otpCountdown); el.textContent = 'OTP expired. Please request a new one.'; return; }
+        const m = Math.floor(seconds / 60);
+        const s = String(seconds % 60).padStart(2, '0');
+        el.textContent = `Code expires in ${m}:${s}`;
+      }, 1000);
+      el.textContent = 'Code expires in 2:00';
+    }
+
+    function backToEmail() {
+      document.getElementById('authStep1').classList.remove('hidden');
+      document.getElementById('authStep2').classList.add('hidden');
+      clearInterval(otpCountdown);
+    }
+
+    // ── OTP Configuration ─────────────────────────────
+    // Set this to your deployed Cloudflare Worker URL (e.g. "https://birgunj-otp-worker.your-subdomain.workers.dev")
+    // Leave empty to use the existing backend OTP system
+    const OTP_WORKER_URL = "";
+
+    let sendOtpCooldown = null;
+
+    async function requestOtp() {
+      const btn = document.getElementById('sendOtpBtn');
+      const email = document.getElementById('authEmail').value.trim();
+      if (!email) { toast('Please enter your email'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Please enter a valid email'); return; }
+
+      try {
+        btn.disabled = true; btn.textContent = 'Sending...';
+        let data;
+
+        if (OTP_WORKER_URL) {
+          // Use Cloudflare Worker
+          const res = await fetch(OTP_WORKER_URL + "/send-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+          });
+          data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed to send OTP");
+        } else {
+          // Fallback to backend
+          data = await api("/api/auth/request-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+          });
+        }
+
+        document.getElementById('otpSentEmail').textContent = email;
+        document.getElementById('authStep1').classList.add('hidden');
+        document.getElementById('authStep2').classList.remove('hidden');
+        initOtpDigitInputs();
+        document.querySelector('.otp-digit').focus();
+        startOtpTimer();
+        toast(data.message);
+
+        // 30-second cooldown on Send OTP button
+        let cooldownSecs = 30;
+        btn.textContent = `Resend in ${cooldownSecs}s`;
+        clearInterval(sendOtpCooldown);
+        sendOtpCooldown = setInterval(() => {
+          cooldownSecs--;
+          if (cooldownSecs <= 0) {
+            clearInterval(sendOtpCooldown);
+            btn.disabled = false;
+            btn.textContent = 'Resend OTP';
+          } else {
+            btn.textContent = `Resend in ${cooldownSecs}s`;
+          }
+        }, 1000);
+
+      } catch (e) {
+        document.getElementById('otpHint').textContent = e.message;
+        toast(e.message);
+        btn.disabled = false; btn.textContent = 'Send OTP';
+      }
     }
 
     async function verifyOtp() {
+      const digits = document.querySelectorAll('.otp-digit');
+      const otp = Array.from(digits).map(d => d.value).join('');
+      if (otp.length < 6) { toast('Please enter all 6 digits'); return; }
+      const btn = document.getElementById('verifyOtpBtn');
+      const email = document.getElementById("authEmail").value.trim();
+
       try {
-        const data = await api("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: document.getElementById("authPhone").value, otp: document.getElementById("authOtp").value })
-        });
-        customerToken = data.token;
-        localStorage.setItem("bfc_customer_token", customerToken);
-        document.getElementById("coPhone").value = data.user.phone;
+        btn.disabled = true; btn.textContent = 'Verifying...';
+        let data;
+
+        if (OTP_WORKER_URL) {
+          // Verify via Cloudflare Worker
+          const res = await fetch(OTP_WORKER_URL + "/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp })
+          });
+          data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Verification failed");
+
+          // Exchange Worker JWT for a backend session token
+          const exchangeData = await api("/api/auth/exchange-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: data.token })
+          });
+          customerToken = exchangeData.token;
+          localStorage.setItem("bfc_customer_token", customerToken);
+          document.getElementById("coEmail").value = exchangeData.user.email || "";
+        } else {
+          // Verify via backend
+          data = await api("/api/auth/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp })
+          });
+          customerToken = data.token;
+          localStorage.setItem("bfc_customer_token", customerToken);
+          document.getElementById("coEmail").value = data.user.email || "";
+        }
+
+        clearInterval(otpCountdown);
+        clearInterval(sendOtpCooldown);
         closeModal("authModal");
-        toast("Login verified");
-      } catch (e) { toast(e.message); }
+        backToEmail();
+        toast("✅ Login successful!");
+      } catch (e) {
+        digits.forEach(d => { d.value = ''; d.style.borderColor = '#ef4444'; });
+        digits[0].focus();
+        setTimeout(() => digits.forEach(d => d.style.borderColor = ''), 1500);
+        toast(e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Verify & Login';
+      }
     }
 
     async function placeOrder(event) {
@@ -679,6 +1006,17 @@
         toast("Please verify your mobile number first");
         return;
       }
+      
+      // Final Size Validation
+      for (const item of cart) {
+        const p = products.find(prod => prod.id === item.productId);
+        if (p && p.sizes && p.sizes.length > 0 && !item.size) {
+          toast(`Please choose a size for ${p.name} before placing order!`);
+          openCart();
+          return;
+        }
+      }
+
       try {
         const data = await api("/api/orders", {
           method: "POST",
@@ -690,14 +1028,17 @@
               phone: document.getElementById("coPhone").value,
               additionalPhone: document.getElementById("coAltPhone").value,
               email: document.getElementById("coEmail").value,
-              address: document.getElementById("coAddress").value
+              address: document.getElementById("coAddress").value,
+              location: customerLocation
             },
             paymentReference: document.getElementById("paymentReference").value
           })
         });
         cart = [];
+        customerLocation = null;
         saveCart();
         renderCart();
+        document.getElementById("locationStatus").textContent = "GPS location not added.";
         document.getElementById("orderResult").innerHTML = `
           <div class="panel" style="margin-top:14px">
             <h3>${data.message}</h3>
@@ -792,24 +1133,77 @@
       if (name === "pages") renderAdminPages();
     }
 
+    // Central image store — one entry per slot [0]=primary,[1]=extra1,[2]=extra2,[3]=extra3
+    const _imgData = { 0: "", 1: "", 2: "", 3: "" };
+
     function renderAdminProducts() {
       document.getElementById("adminContent").innerHTML = `
         <div class="two-col">
           <form class="panel" onsubmit="saveProduct(event)">
             <h3 id="productFormTitle">Add Product</h3>
-            <div class="form-grid">
-              <input type="hidden" id="editProductId">
-              <input id="pName" placeholder="Product name" required>
-              <input id="pCategory" placeholder="Category" required>
-              <input id="pPrice" type="number" placeholder="Price" required>
-              <input id="pStock" type="number" placeholder="Stock" value="10">
-              <textarea class="full" id="pDescription" placeholder="Description"></textarea>
-              <input class="full" id="pImage" placeholder="Image URL or upload below">
-              <input class="full" id="pUpload" type="file" accept="image/*">
-              <label class="full"><input id="pFeatured" type="checkbox" style="width:auto"> Featured</label>
-              <button class="full">Add Product</button>
-              <button type="button" class="full secondary" onclick="resetProductForm()">Clear Form</button>
+            <div class="admin-live-preview" id="adminSliderPrev">
+              <div class="slider-container" style="height: 100%;">
+                <div class="product-slider" id="productSliderAdmin" data-index="0" data-count="1">
+                  <img id="adminPrevImg" src="" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+              </div>
             </div>
+            <div class="form-grid">
+                <input type="hidden" id="editProductId">
+                <input id="pName" placeholder="Product name" required>
+                <input id="pCategory" placeholder="Category" required>
+                <input id="pPrice" type="number" placeholder="Price" required>
+                <input id="pStock" type="number" placeholder="Stock" value="10">
+                <textarea class="full" id="pDescription" placeholder="Description"></textarea>
+                
+                <div class="full" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                  <strong>Product Images</strong>
+                  <button type="button" class="danger" style="padding:4px 12px;" onclick="clearAllExtras()">Clear All Extra Slots</button>
+                </div>
+                <div class="full admin-image-row">
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <label>Primary Image</label>
+                      <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(0,'pImage','pUpload')">Clear</button>
+                    </div>
+                    <input id="pImage" placeholder="URL">
+                    <input id="pUpload" type="file" accept="image/*" onchange="previewImg(this, 0)">
+                    <img id="prev1" class="img-preview">
+                  </div>
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <label>Extra 1</label>
+                      <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(1,'pImage2','pUpload2')">Clear</button>
+                    </div>
+                    <input id="pImage2" placeholder="URL">
+                    <input id="pUpload2" type="file" accept="image/*" onchange="previewImg(this, 1)">
+                    <img id="prev2" class="img-preview">
+                  </div>
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <label>Extra 2</label>
+                      <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(2,'pImage3','pUpload3')">Clear</button>
+                    </div>
+                    <input id="pImage3" placeholder="URL">
+                    <input id="pUpload3" type="file" accept="image/*" onchange="previewImg(this, 2)">
+                    <img id="prev3" class="img-preview">
+                  </div>
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <label>Extra 3</label>
+                      <button type="button" class="danger" style="padding:2px 8px; font-size:10px;" onclick="clearSlot(3,'pImage4','pUpload4')">Clear</button>
+                    </div>
+                    <input id="pImage4" placeholder="URL">
+                    <input id="pUpload4" type="file" accept="image/*" onchange="previewImg(this, 3)">
+                    <img id="prev4" class="img-preview">
+                  </div>
+                </div>
+
+                <input class="full" id="pSizes" placeholder="Available Sizes (comma-separated, e.g., S, M, L)">
+                <label class="full"><input id="pFeatured" type="checkbox" style="width:auto"> Featured</label>
+                <button class="full" id="saveBtn">Add Product</button>
+                <button type="button" class="full secondary" onclick="resetProductForm()">Clear Form</button>
+              </div>
           </form>
           <div class="panel">
             <h3>Products</h3>
@@ -828,49 +1222,175 @@
       document.getElementById("pPrice").value = p.price;
       document.getElementById("pStock").value = p.stock;
       document.getElementById("pDescription").value = p.description;
-      document.getElementById("pImage").value = p.image;
+      document.getElementById("pSizes").value = (p.sizes || []).join(", ");
       document.getElementById("pFeatured").checked = Boolean(p.featured);
+
+      // Store image data in JS variables — single source of truth
+      _imgData[0] = p.image || "";
+      _imgData[1] = p.extraImages?.[0] || "";
+      _imgData[2] = p.extraImages?.[1] || "";
+      _imgData[3] = p.extraImages?.[2] || "";
+
+      // Clear all file inputs so no stale file reference lingers
+      document.getElementById("pUpload").value = "";
+      document.getElementById("pUpload2").value = "";
+      document.getElementById("pUpload3").value = "";
+      document.getElementById("pUpload4").value = "";
+
+      // Populate URL fields only for http URLs
+      document.getElementById("pImage").value = _imgData[0].startsWith("http") ? _imgData[0] : "";
+      document.getElementById("pImage2").value = _imgData[1].startsWith("http") ? _imgData[1] : "";
+      document.getElementById("pImage3").value = _imgData[2].startsWith("http") ? _imgData[2] : "";
+      document.getElementById("pImage4").value = _imgData[3].startsWith("http") ? _imgData[3] : "";
+
+      // Update individual slot preview images
+      document.getElementById("prev1").src = _imgData[0] || "";
+      document.getElementById("prev2").src = _imgData[1] || "";
+      document.getElementById("prev3").src = _imgData[2] || "";
+      document.getElementById("prev4").src = _imgData[3] || "";
+
+      refreshAdminSlider();
+      document.getElementById("productFormTitle").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function previewImg(input, slotIndex) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        const idx = parseInt(slotIndex, 10);
+        reader.onload = (e) => {
+          _imgData[idx] = e.target.result;
+          // Also update the individual slot preview image
+          const prevIds = ["prev1", "prev2", "prev3", "prev4"];
+          const prevEl = document.getElementById(prevIds[idx]);
+          if (prevEl) prevEl.src = e.target.result;
+          refreshAdminSlider();
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function refreshAdminSlider() {
+      const imgs = [_imgData[0], _imgData[1], _imgData[2], _imgData[3]].filter(Boolean);
+      const container = document.getElementById("productSliderAdmin");
+      if (!container) return;
+      container.setAttribute("data-count", imgs.length || 1);
+      container.innerHTML = (imgs.length ? imgs : [""]).map(src => `<img src="${src}" style="width:100%;height:100%;object-fit:cover;">`).join("");
+      setSliderAdmin(0);
+    }
+
+    function setSliderAdmin(idx) {
+      const slider = document.getElementById("productSliderAdmin");
+      if (!slider) return;
+      slider.setAttribute("data-index", idx);
+      slider.style.transform = `translateX(-${idx * 100}%)`;
     }
 
     function resetProductForm() {
       document.getElementById("productFormTitle").textContent = "Add Product";
       document.getElementById("editProductId").value = "";
+      _imgData[0] = ""; _imgData[1] = ""; _imgData[2] = ""; _imgData[3] = "";
       document.getElementById("pUpload").value = "";
+      document.getElementById("pUpload2").value = "";
+      document.getElementById("pUpload3").value = "";
+      document.getElementById("pUpload4").value = "";
+      document.getElementById("pImage").value = "";
+      document.getElementById("pImage2").value = "";
+      document.getElementById("pImage3").value = "";
+      document.getElementById("pImage4").value = "";
+      // Clear individual previews
+      ["prev1", "prev2", "prev3", "prev4"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.removeAttribute("src");
+      });
+      document.getElementById("pSizes").value = "S, M, L, XL";
       document.querySelector("#adminContent form").reset();
+      document.getElementById("pSizes").value = "S, M, L, XL";
+      refreshAdminSlider();
     }
 
-    function readUpload(input) {
-      return new Promise((resolve) => {
-        const file = input.files[0];
-        if (!file) return resolve("");
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
+    function clearSlot(slotIndex, urlId, fileId) {
+      const idx = parseInt(slotIndex, 10);
+      _imgData[idx] = "";
+      if (urlId) document.getElementById(urlId).value = "";
+      if (fileId) document.getElementById(fileId).value = "";
+      // Clear the individual slot preview image
+      const prevIds = ["prev1", "prev2", "prev3", "prev4"];
+      const prevEl = document.getElementById(prevIds[idx]);
+      if (prevEl) prevEl.removeAttribute("src");
+      refreshAdminSlider();
+    }
+
+    function clearAllExtras() {
+      clearSlot(1, 'pImage2', 'pUpload2');
+      clearSlot(2, 'pImage3', 'pUpload3');
+      clearSlot(3, 'pImage4', 'pUpload4');
+      toast("All extra image slots cleared!");
     }
 
     async function saveProduct(event) {
       event.preventDefault();
+      const btn = event.target.querySelector("button");
+      const originalText = btn.textContent;
       try {
-        const uploaded = await readUpload(document.getElementById("pUpload"));
+        btn.disabled = true;
+        btn.textContent = "Saving... Please wait";
+
+        // Helper: read file input as base64, or return empty string
+        const readFile = (fileInputId) => new Promise((resolve) => {
+          const input = document.getElementById(fileInputId);
+          if (!input || !input.files || !input.files[0]) return resolve("");
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(input.files[0]);
+        });
+
+        // For each slot: new file upload wins, then URL input, then previously loaded data
+        const getSlot = async (fileInputId, urlInputId, slotIndex) => {
+          const fromFile = await readFile(fileInputId);
+          if (fromFile) return fromFile;
+          const urlEl = document.getElementById(urlInputId);
+          if (urlEl && urlEl.value.trim()) return urlEl.value.trim();
+          return _imgData[slotIndex] || "";
+        };
+
+        const i1 = await getSlot("pUpload",  "pImage",  0);
+        const i2 = await getSlot("pUpload2", "pImage2", 1);
+        const i3 = await getSlot("pUpload3", "pImage3", 2);
+        const i4 = await getSlot("pUpload4", "pImage4", 3);
+
+        const extraImages = [i2, i3, i4].filter(Boolean);
+
         const id = document.getElementById("editProductId").value;
+        const payload = {
+          name: document.getElementById("pName").value,
+          category: document.getElementById("pCategory").value,
+          price: document.getElementById("pPrice").value,
+          stock: document.getElementById("pStock").value,
+          description: document.getElementById("pDescription").value,
+          image: i1,
+          extraImages: extraImages,
+          sizes: document.getElementById("pSizes").value.split(",").map(s => s.trim()).filter(Boolean),
+          featured: document.getElementById("pFeatured").checked
+        };
+
         await api(id ? `/api/admin/products/${id}` : "/api/admin/products", {
           method: id ? "PUT" : "POST",
           headers: adminHeaders(),
-          body: JSON.stringify({
-            name: pName.value,
-            category: pCategory.value,
-            price: pPrice.value,
-            stock: pStock.value,
-            description: pDescription.value,
-            image: uploaded || pImage.value,
-            featured: pFeatured.checked
-          })
+          body: JSON.stringify(payload)
         });
-        products = await api("/api/products");
+
+        await new Promise(r => setTimeout(r, 400));
+        products = await api("/api/products?t=" + Date.now());
         renderProducts(); renderCategories(); renderFilters(); renderAdminProducts();
-        toast(id ? "Product updated" : "Product added");
-      } catch (e) { toast(e.message); }
+        resetProductForm();
+        toast(`${id ? "Updated" : "Added"}! Images saved: ${extraImages.length + 1}`);
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     }
 
     async function deleteProduct(id) {

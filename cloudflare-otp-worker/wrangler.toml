@@ -1,0 +1,13 @@
+name = "birgunj-otp-worker"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# KV Namespace binding — create via: wrangler kv namespace create OTP_STORE
+# Then paste the id below
+[[kv_namespaces]]
+binding = "OTP_STORE"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+
+# Environment variables (secrets set via: wrangler secret put RESEND_API_KEY)
+# [vars]
+# ALLOWED_ORIGIN = "https://your-site.pages.dev"

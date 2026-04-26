@@ -13,13 +13,12 @@ Open `http://localhost:5001`.
 
 ## Admin Login
 
-- Phone: `9800000000`
-- Password: `admin123`
+Admin credentials are intentionally not published in this README.
 
-You can override these with environment variables:
+Set or override them with environment variables when starting the app:
 
 ```bash
-ADMIN_PHONE=9800000000 ADMIN_PASSWORD=your-password PORT=5001 npm start
+ADMIN_PHONE=<admin-phone> ADMIN_PASSWORD=<admin-password> PORT=5001 npm start
 ```
 
 ## Data Storage
@@ -35,9 +34,17 @@ It stores:
 - live chat messages
 - editable About/Services content and QR payment settings
 
+## Customer Email OTP
+
+Customer login uses email OTP verification. For Gmail SMTP, create a Gmail app password and start the app with:
+
+```bash
+EMAIL_PROVIDER=gmail GMAIL_USER=<your-gmail-address> GMAIL_APP_PASSWORD=<gmail-app-password> PORT=5001 npm start
+```
+
 ## Production Notes
 
-The OTP flow generates a real six-digit OTP and stores it with expiry. In local demo mode the OTP is returned in the API response so the app can be tested without SMS credentials. For production, connect an SMS provider inside `/api/auth/request-otp` and stop returning `demoOtp`.
+The OTP flow generates a real six-digit OTP, stores it with expiry, and sends it to the customer's email. If Gmail SMTP is not configured or email sending fails, the OTP is not shown on screen and login is blocked until email sending is fixed.
 
 QR payments are manual-verification payments. The admin can upload or paste a QR image and later mark payment status as verified from the order panel.
 # Birgunj-fashion-collection
