@@ -432,30 +432,57 @@
   </div>
 
   <div class="modal" id="authModal">
-    <div class="modal-box" style="max-width:420px;">
-      <div class="modal-head"><h2>Login</h2><button class="icon secondary" onclick="closeModal('authModal')">x</button></div>
-      <!-- Step 1: Email -->
-      <div id="authStep1">
-        <p class="muted" style="margin:0 0 14px;">Enter your email to receive a 6-digit verification code.</p>
-        <input id="authEmail" type="email" placeholder="you@example.com" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();requestOtp();}" />
-        <button style="width:100%;" id="sendOtpBtn" onclick="requestOtp()">Send OTP</button>
-        <p class="muted" id="otpHint" style="margin-top:10px;text-align:center;"></p>
+    <div class="modal-box" style="max-width:440px;">
+      <div class="modal-head"><h2 id="authTitle">Login</h2><button class="icon secondary" onclick="closeModal('authModal')">x</button></div>
+
+      <!-- Auth Tabs -->
+      <div style="display:flex;gap:0;margin-bottom:18px;border-radius:8px;overflow:hidden;border:1px solid var(--line);">
+        <button id="tabLogin" onclick="switchAuthTab('login')" style="flex:1;border-radius:0;min-height:40px;font-size:14px;background:var(--ink);color:#fff;">Login</button>
+        <button id="tabRegister" onclick="switchAuthTab('register')" style="flex:1;border-radius:0;min-height:40px;font-size:14px;background:#fff;color:var(--ink);border-left:1px solid var(--line);">Create Account</button>
       </div>
-      <!-- Step 2: OTP -->
-      <div id="authStep2" class="hidden">
-        <p class="muted" style="margin:0 0 6px;">We sent a code to <strong id="otpSentEmail"></strong></p>
-        <div style="display:flex;gap:8px;justify-content:center;margin:18px 0;" id="otpDigitRow">
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
-          <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:44px;height:52px;text-align:center;font-size:22px;font-weight:bold;border-radius:8px;border:2px solid var(--line);padding:0;" />
+
+      <!-- Login Form -->
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <p class="muted" style="margin:0 0 14px;">Welcome back! Enter your credentials to login.</p>
+        <input id="loginEmail" type="email" placeholder="Email address" required style="margin-bottom:10px;" />
+        <div style="position:relative;">
+          <input id="loginPassword" type="password" placeholder="Password" required style="margin-bottom:14px;padding-right:44px;" />
+          <button type="button" onclick="togglePasswordVisibility('loginPassword', this)" style="position:absolute;right:6px;top:6px;width:32px;min-height:32px;padding:0;background:transparent;color:var(--muted);font-size:12px;border:none;">👁</button>
         </div>
-        <button style="width:100%;" id="verifyOtpBtn" onclick="verifyOtp()">Verify & Login</button>
-        <p class="muted" style="margin-top:12px;text-align:center;" id="otpTimer"></p>
-        <p style="margin-top:8px;text-align:center;"><a href="#" onclick="event.preventDefault();backToEmail();" style="color:var(--brand);font-weight:600;text-decoration:none;">← Change email</a></p>
-      </div>
+        <button type="submit" style="width:100%;" id="loginBtn">Login</button>
+        <p class="muted" id="loginHint" style="margin-top:10px;text-align:center;color:var(--brand);"></p>
+      </form>
+
+      <!-- Register Form -->
+      <form id="registerForm" class="hidden" onsubmit="handleRegister(event)">
+        <p class="muted" style="margin:0 0 14px;">Create your account to start shopping.</p>
+        <div class="form-grid">
+          <input id="regFirstName" placeholder="First Name" required />
+          <input id="regLastName" placeholder="Last Name" required />
+          <input id="regPhone" class="full" type="tel" placeholder="Mobile Number" required />
+          <input id="regEmail" class="full" type="email" placeholder="Email Address" required />
+          <div class="full" style="position:relative;">
+            <input id="regPassword" type="password" placeholder="Create Password" required style="padding-right:44px;" oninput="checkPasswordStrength()" />
+            <button type="button" onclick="togglePasswordVisibility('regPassword', this)" style="position:absolute;right:6px;top:6px;width:32px;min-height:32px;padding:0;background:transparent;color:var(--muted);font-size:12px;border:none;">👁</button>
+          </div>
+          <div class="full" style="position:relative;">
+            <input id="regConfirmPassword" type="password" placeholder="Confirm Password" required style="padding-right:44px;" />
+            <button type="button" onclick="togglePasswordVisibility('regConfirmPassword', this)" style="position:absolute;right:6px;top:6px;width:32px;min-height:32px;padding:0;background:transparent;color:var(--muted);font-size:12px;border:none;">👁</button>
+          </div>
+
+          <!-- Password Strength Indicators -->
+          <div class="full" id="passwordRules" style="font-size:12px;line-height:1.8;margin-top:2px;">
+            <div id="pwRule1" style="color:var(--muted);">✗ At least 8 characters</div>
+            <div id="pwRule2" style="color:var(--muted);">✗ One uppercase letter (A-Z)</div>
+            <div id="pwRule3" style="color:var(--muted);">✗ One lowercase letter (a-z)</div>
+            <div id="pwRule4" style="color:var(--muted);">✗ One number (0-9)</div>
+            <div id="pwRule5" style="color:var(--muted);">✗ One special character (@, #, $, !, etc.)</div>
+          </div>
+
+          <button class="full" type="submit" id="registerBtn">Create Account</button>
+        </div>
+        <p class="muted" id="registerHint" style="margin-top:10px;text-align:center;color:var(--brand);"></p>
+      </form>
     </div>
   </div>
 
@@ -501,6 +528,17 @@
     <div class="modal-box">
       <div class="modal-head"><h2>Product Details</h2><button class="icon secondary" onclick="closeModal('productModal')">x</button></div>
       <div id="productDetails"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="cancelConfirmModal">
+    <div class="modal-box" style="max-width: 400px; text-align: center;">
+      <div class="modal-head"><h2>Cancel Order</h2><button class="icon secondary" onclick="closeModal('cancelConfirmModal')">x</button></div>
+      <p style="margin: 20px 0;">Are you sure you want to cancel this order? This action cannot be undone.</p>
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+        <button class="secondary" style="flex: 1;" onclick="closeModal('cancelConfirmModal')">No, Keep Order</button>
+        <button class="danger" style="flex: 1;" onclick="confirmCancelOrder()">Yes, Cancel Order</button>
+      </div>
     </div>
   </div>
 
@@ -833,169 +871,142 @@
       );
     }
 
-    let otpCountdown = null;
+    // ── Auth Tab Switching ─────────────────────────────
+    function switchAuthTab(tab) {
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const tabLogin = document.getElementById('tabLogin');
+      const tabRegister = document.getElementById('tabRegister');
+      const title = document.getElementById('authTitle');
 
-    function initOtpDigitInputs() {
-      const digits = document.querySelectorAll('.otp-digit');
-      digits.forEach((inp, i) => {
-        inp.value = '';
-        inp.addEventListener('input', () => {
-          inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
-          if (inp.value && i < digits.length - 1) digits[i + 1].focus();
-          if (i === digits.length - 1 && inp.value) verifyOtp();
-        });
-        inp.addEventListener('keydown', (e) => {
-          if (e.key === 'Backspace' && !inp.value && i > 0) digits[i - 1].focus();
-        });
-        inp.addEventListener('paste', (e) => {
-          e.preventDefault();
-          const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-          text.split('').forEach((ch, j) => { if (digits[i + j]) digits[i + j].value = ch; });
-          if (digits[Math.min(i + text.length, digits.length - 1)]) digits[Math.min(i + text.length, digits.length - 1)].focus();
-          if (text.length === 6) verifyOtp();
-        });
-      });
+      if (tab === 'login') {
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+        tabLogin.style.background = 'var(--ink)';
+        tabLogin.style.color = '#fff';
+        tabRegister.style.background = '#fff';
+        tabRegister.style.color = 'var(--ink)';
+        title.textContent = 'Login';
+      } else {
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+        tabRegister.style.background = 'var(--ink)';
+        tabRegister.style.color = '#fff';
+        tabLogin.style.background = '#fff';
+        tabLogin.style.color = 'var(--ink)';
+        title.textContent = 'Create Account';
+      }
+      // Clear hints
+      document.getElementById('loginHint').textContent = '';
+      document.getElementById('registerHint').textContent = '';
     }
 
-    function startOtpTimer() {
-      let seconds = 120;
-      const el = document.getElementById('otpTimer');
-      clearInterval(otpCountdown);
-      otpCountdown = setInterval(() => {
-        seconds--;
-        if (seconds <= 0) { clearInterval(otpCountdown); el.textContent = 'OTP expired. Please request a new one.'; return; }
-        const m = Math.floor(seconds / 60);
-        const s = String(seconds % 60).padStart(2, '0');
-        el.textContent = `Code expires in ${m}:${s}`;
-      }, 1000);
-      el.textContent = 'Code expires in 2:00';
-    }
-
-    function backToEmail() {
-      document.getElementById('authStep1').classList.remove('hidden');
-      document.getElementById('authStep2').classList.add('hidden');
-      clearInterval(otpCountdown);
-    }
-
-    // ── OTP Configuration ─────────────────────────────
-    // Set this to your deployed Cloudflare Worker URL (e.g. "https://birgunj-otp-worker.your-subdomain.workers.dev")
-    // Leave empty to use the existing backend OTP system
-    const OTP_WORKER_URL = "";
-
-    let sendOtpCooldown = null;
-
-    async function requestOtp() {
-      const btn = document.getElementById('sendOtpBtn');
-      const email = document.getElementById('authEmail').value.trim();
-      if (!email) { toast('Please enter your email'); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Please enter a valid email'); return; }
-
-      try {
-        btn.disabled = true; btn.textContent = 'Sending...';
-        let data;
-
-        if (OTP_WORKER_URL) {
-          // Use Cloudflare Worker
-          const res = await fetch(OTP_WORKER_URL + "/send-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email })
-          });
-          data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Failed to send OTP");
-        } else {
-          // Fallback to backend
-          data = await api("/api/auth/request-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email })
-          });
-        }
-
-        document.getElementById('otpSentEmail').textContent = email;
-        document.getElementById('authStep1').classList.add('hidden');
-        document.getElementById('authStep2').classList.remove('hidden');
-        initOtpDigitInputs();
-        document.querySelector('.otp-digit').focus();
-        startOtpTimer();
-        toast(data.message);
-
-        // 30-second cooldown on Send OTP button
-        let cooldownSecs = 30;
-        btn.textContent = `Resend in ${cooldownSecs}s`;
-        clearInterval(sendOtpCooldown);
-        sendOtpCooldown = setInterval(() => {
-          cooldownSecs--;
-          if (cooldownSecs <= 0) {
-            clearInterval(sendOtpCooldown);
-            btn.disabled = false;
-            btn.textContent = 'Resend OTP';
-          } else {
-            btn.textContent = `Resend in ${cooldownSecs}s`;
-          }
-        }, 1000);
-
-      } catch (e) {
-        document.getElementById('otpHint').textContent = e.message;
-        toast(e.message);
-        btn.disabled = false; btn.textContent = 'Send OTP';
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🔒';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
       }
     }
 
-    async function verifyOtp() {
-      const digits = document.querySelectorAll('.otp-digit');
-      const otp = Array.from(digits).map(d => d.value).join('');
-      if (otp.length < 6) { toast('Please enter all 6 digits'); return; }
-      const btn = document.getElementById('verifyOtpBtn');
-      const email = document.getElementById("authEmail").value.trim();
+    function checkPasswordStrength() {
+      const pw = document.getElementById('regPassword').value;
+      const rules = [
+        { id: 'pwRule1', test: pw.length >= 8, label: 'At least 8 characters' },
+        { id: 'pwRule2', test: /[A-Z]/.test(pw), label: 'One uppercase letter (A-Z)' },
+        { id: 'pwRule3', test: /[a-z]/.test(pw), label: 'One lowercase letter (a-z)' },
+        { id: 'pwRule4', test: /[0-9]/.test(pw), label: 'One number (0-9)' },
+        { id: 'pwRule5', test: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(pw), label: 'One special character (@, #, $, !, etc.)' },
+      ];
+      rules.forEach(r => {
+        const el = document.getElementById(r.id);
+        if (r.test) {
+          el.style.color = 'var(--green)';
+          el.textContent = '✓ ' + r.label;
+        } else {
+          el.style.color = 'var(--muted)';
+          el.textContent = '✗ ' + r.label;
+        }
+      });
+    }
+
+    function onAuthSuccess(data) {
+      customerToken = data.token;
+      localStorage.setItem("bfc_customer_token", customerToken);
+      if (data.user) {
+        localStorage.setItem("bfc_customer_name", (data.user.firstName || '') + ' ' + (data.user.lastName || ''));
+        if (data.user.email) document.getElementById("coEmail").value = data.user.email;
+        if (data.user.phone) document.getElementById("coPhone").value = data.user.phone;
+      }
+      closeModal("authModal");
+      toast("✅ Login successful! Welcome, " + (data.user?.firstName || "Customer") + "!");
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const hint = document.getElementById('loginHint');
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+
+      if (!email || !password) { hint.textContent = 'Please fill in all fields'; return; }
 
       try {
-        btn.disabled = true; btn.textContent = 'Verifying...';
-        let data;
-
-        if (OTP_WORKER_URL) {
-          // Verify via Cloudflare Worker
-          const res = await fetch(OTP_WORKER_URL + "/verify-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, otp })
-          });
-          data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Verification failed");
-
-          // Exchange Worker JWT for a backend session token
-          const exchangeData = await api("/api/auth/exchange-token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: data.token })
-          });
-          customerToken = exchangeData.token;
-          localStorage.setItem("bfc_customer_token", customerToken);
-          document.getElementById("coEmail").value = exchangeData.user.email || "";
-        } else {
-          // Verify via backend
-          data = await api("/api/auth/verify-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, otp })
-          });
-          customerToken = data.token;
-          localStorage.setItem("bfc_customer_token", customerToken);
-          document.getElementById("coEmail").value = data.user.email || "";
-        }
-
-        clearInterval(otpCountdown);
-        clearInterval(sendOtpCooldown);
-        closeModal("authModal");
-        backToEmail();
-        toast("✅ Login successful!");
+        btn.disabled = true; btn.textContent = 'Logging in...';
+        hint.textContent = '';
+        const data = await api("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+        onAuthSuccess(data);
       } catch (e) {
-        digits.forEach(d => { d.value = ''; d.style.borderColor = '#ef4444'; });
-        digits[0].focus();
-        setTimeout(() => digits.forEach(d => d.style.borderColor = ''), 1500);
+        hint.textContent = e.message;
         toast(e.message);
       } finally {
-        btn.disabled = false; btn.textContent = 'Verify & Login';
+        btn.disabled = false; btn.textContent = 'Login';
+      }
+    }
+
+    async function handleRegister(event) {
+      event.preventDefault();
+      const btn = document.getElementById('registerBtn');
+      const hint = document.getElementById('registerHint');
+      const firstName = document.getElementById('regFirstName').value.trim();
+      const lastName = document.getElementById('regLastName').value.trim();
+      const phone = document.getElementById('regPhone').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+      if (!firstName || !lastName || !phone || !email || !password) {
+        hint.textContent = 'Please fill in all fields';
+        return;
+      }
+      if (password !== confirmPassword) {
+        hint.textContent = 'Passwords do not match';
+        toast('Passwords do not match');
+        return;
+      }
+
+      try {
+        btn.disabled = true; btn.textContent = 'Creating account...';
+        hint.textContent = '';
+        const data = await api("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ firstName, lastName, phone, email, password })
+        });
+        onAuthSuccess(data);
+        toast("🎉 Account created successfully!");
+      } catch (e) {
+        hint.textContent = e.message;
+        toast(e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Create Account';
       }
     }
 
@@ -1003,7 +1014,7 @@
       event.preventDefault();
       if (!customerToken) {
         openAuth();
-        toast("Please verify your mobile number first");
+        toast("Please login or create an account first");
         return;
       }
       
@@ -1053,25 +1064,72 @@
     async function loadMyOrders() {
       if (!customerToken) {
         openAuth();
-        toast("Please verify your mobile number first");
+        toast("Please login or create an account first");
         return;
       }
       try {
         const orders = await api("/api/orders/my", { headers: authHeaders() });
         document.getElementById("ordersModal").classList.add("open");
-        document.getElementById("myOrders").innerHTML = orders.map((o) => `
-          <div class="panel" style="margin-bottom:12px">
-            <strong>${o.id}</strong>
+        document.getElementById("myOrders").innerHTML = orders.map((o) => {
+          const isShipped = o.tracking.some((t) => 
+            t.at && (t.label.toLowerCase().includes("shipped") || 
+                     t.label.toLowerCase().includes("out for delivery") || 
+                     t.label.toLowerCase().includes("delivered"))
+          );
+          const isCancelled = o.orderStatus === "Cancelled";
+          const canCancel = !isCancelled && !isShipped;
+
+          return `
+          <div class="panel" style="margin-bottom:12px;${isCancelled ? 'opacity:0.7;' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <strong>${o.id}</strong>
+              ${isCancelled ? '<span style="background:#fde8e8;color:#b42318;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;">Cancelled</span>' : ''}
+            </div>
             <p>${money(o.total)} | ${o.paymentMethod} | ${o.paymentStatus}</p>
             <p><strong>Expected delivery:</strong> ${dateText(o.expectedDeliveryDate)}</p>
-            <div class="tracking">${o.tracking.map((t) => `<span class="${t.at ? "done" : ""}">${t.label}${t.at ? ` - ${dateText(t.at)}` : ""}</span>`).join("")}</div>
-            <select id="returnReason_${o.id}">
-              <option>Wrong item</option><option>Damaged item</option><option>Size issue</option><option>Other</option>
-            </select>
-            <button style="margin-top:8px" onclick="requestReturn('${o.id}')">Request Return/Refund</button>
+            <div class="tracking">${o.tracking.map((t) => `<span class="${t.at ? "done" : ""}${t.label.toLowerCase().includes("cancelled") ? " style=color:var(--brand);font-weight:800;" : ""}">${t.label}${t.at ? ` - ${dateText(t.at)}` : ""}</span>`).join("")}</div>
+            ${canCancel ? `<button class="danger" style="margin-top:8px;width:100%;" onclick="cancelOrder('${o.id}')">Cancel Order</button>` : ''}
+            ${!isCancelled ? `
+              <select id="returnReason_${o.id}" style="margin-top:8px;">
+                <option>Wrong item</option><option>Damaged item</option><option>Size issue</option><option>Other</option>
+              </select>
+              <button style="margin-top:8px" onclick="requestReturn('${o.id}')">Request Return/Refund</button>
+            ` : ''}
           </div>
-        `).join("") || `<p class="muted">No orders yet.</p>`;
+        `}).join("") || `<p class="muted">No orders yet.</p>`;
       } catch (e) { toast(e.message); }
+    }
+
+    let pendingCancelOrderId = null;
+
+    function cancelOrder(orderId) {
+      pendingCancelOrderId = orderId;
+      document.getElementById('cancelConfirmModal').classList.add('open');
+    }
+
+    async function confirmCancelOrder() {
+      if (!pendingCancelOrderId) return;
+      
+      const btn = document.querySelector('#cancelConfirmModal .danger');
+      const originalText = btn.textContent;
+      btn.textContent = 'Cancelling...';
+      btn.disabled = true;
+
+      try {
+        const data = await api(`/api/orders/${pendingCancelOrderId}/cancel`, {
+          method: "POST",
+          headers: authHeaders(),
+        });
+        toast("✅ " + data.message);
+        closeModal('cancelConfirmModal');
+        loadMyOrders(); // Refresh the orders list
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        pendingCancelOrderId = null;
+      }
     }
 
     async function requestReturn(orderId) {

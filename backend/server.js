@@ -5,7 +5,8 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const fs = require("fs/promises");
 const fsSync = require("fs");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+// nodemailer kept for future features (order confirmations, etc.)
+// const nodemailer = require("nodemailer");
 const https = require("https");
 const http = require("http");
 
@@ -15,12 +16,8 @@ const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const ADMIN_PHONE = process.env.ADMIN_PHONE || "9744226927";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Naresh@5454";
-const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "brevo";
-const GMAIL_USER = process.env.GMAIL_USER || "";
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || "";
-const BREVO_USER = process.env.BREVO_USER || "";
-const BREVO_PASS = process.env.BREVO_PASS || "";
-const BREVO_FROM = process.env.BREVO_FROM || "";
+// Email config kept for future features (order confirmations)
+// const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "brevo";
 const WORKER_JWT_SECRET = process.env.WORKER_JWT_SECRET || "birgunj-fashion-default-secret-change-me";
 
 app.use(cors());
@@ -28,8 +25,6 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 const sessions = new Map();
-const otpStore = new Map();      // email → { otp, expiresAt }
-const otpRateLimit = new Map();  // email → [timestamp, timestamp, ...]
 
 const uid = (prefix) => `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 const now = () => new Date().toISOString();
@@ -164,114 +159,37 @@ function validEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function otpEmailHtml(otp) {
-  const digits = otp.split("").map(d =>
-    `<span style="display:inline-block;width:40px;height:48px;line-height:48px;text-align:center;font-size:24px;font-weight:bold;background:#f4f4f5;border:2px solid #e4e4e7;border-radius:8px;margin:0 3px;color:#18181b;font-family:monospace;">${d}</span>`
-  ).join("");
-  return `
-  <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden;">
-    <div style="background:#b42318;padding:24px 20px;text-align:center;">
-      <h1 style="margin:0;color:#ffffff;font-size:20px;letter-spacing:1px;">BIRGUNJ FASHION COLLECTION</h1>
-    </div>
-    <div style="padding:32px 24px;text-align:center;">
-      <h2 style="margin:0 0 8px;color:#18181b;font-size:22px;">Verify Your Email</h2>
-      <p style="margin:0 0 24px;color:#71717a;font-size:15px;">Use the code below to complete your login. This code expires in <strong>2 minutes</strong>.</p>
-      <div style="margin:0 0 24px;">${digits}</div>
-      <p style="margin:0;color:#a1a1aa;font-size:13px;">If you did not request this code, you can safely ignore this email.</p>
-    </div>
-    <div style="background:#fafafa;padding:16px 24px;text-align:center;border-top:1px solid #e4e4e7;">
-      <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Birgunj Fashion Collection. All rights reserved.</p>
-    </div>
-  </div>`;
+// ── Password Hashing ──────────────────────────────
+function hashPassword(password, salt) {
+  if (!salt) salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.createHmac("sha256", salt).update(password).digest("hex");
+  return { hash, salt };
 }
 
-async function sendOtpEmail(email, otp) {
-  const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-  const RESEND_FROM = process.env.RESEND_FROM || "Birgunj Fashion <onboarding@resend.dev>";
+function verifyPassword(password, storedHash, salt) {
+  const { hash } = hashPassword(password, salt);
+  return hash === storedHash;
+}
 
-  const mailOptions = {
-    to: email,
-    subject: "Your Login OTP",
-    text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
-    html: otpEmailHtml(otp),
-  };
-
-  // ── Option 1: Brevo SMTP (FREE — 300 emails/day, no credit card) ──
-  if (EMAIL_PROVIDER === "brevo" && BREVO_USER && BREVO_PASS) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: "smtp-relay.brevo.com",
-        port: 587,
-        secure: false,
-        auth: { user: BREVO_USER, pass: BREVO_PASS },
-      });
-      await transporter.sendMail({
-        from: BREVO_FROM || `"BIRGUNJ FASHION COLLECTION" <${BREVO_USER}>`,
-        ...mailOptions,
-      });
-      console.log(`✅ OTP email sent to ${email} via Brevo`);
-      return { sent: true };
-    } catch (error) {
-      console.error("Brevo send error:", error.message);
-      return { sent: false, error: "Could not send OTP email. Please try again." };
-    }
-  }
-
-  // ── Option 2: Gmail SMTP via Nodemailer ──
-  if (EMAIL_PROVIDER === "gmail" && GMAIL_USER && GMAIL_APP_PASSWORD) {
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-      });
-      await transporter.sendMail({
-        from: `"BIRGUNJ FASHION COLLECTION" <${GMAIL_USER}>`,
-        ...mailOptions,
-      });
-      console.log(`✅ OTP email sent to ${email} via Gmail`);
-      return { sent: true };
-    } catch (error) {
-      console.error("Gmail send error:", error.message);
-      return { sent: false, error: "Could not send OTP email. Please try again." };
-    }
-  }
-
-  // ── Option 3: Resend API ──
-  if (RESEND_API_KEY) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: RESEND_FROM,
-          to: [email],
-          ...mailOptions,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        console.error("Resend API error:", JSON.stringify(result));
-        return { sent: false, error: "Could not send OTP email. Please try again." };
-      }
-      console.log(`✅ OTP email sent to ${email} via Resend`);
-      return { sent: true };
-    } catch (error) {
-      console.error("Resend send error:", error.message);
-      return { sent: false, error: "Could not send OTP email. Please try again." };
-    }
-  }
-
-  // ── No email provider configured ──
-  console.error("❌ No email provider configured. Set BREVO, GMAIL, or RESEND credentials in .env");
-  return { sent: false, error: "Email service not configured. Please contact the store owner." };
+function validPassword(password) {
+  if (!password || password.length < 8) return "Password must be at least 8 characters";
+  if (!/[A-Z]/.test(password)) return "Password must contain an uppercase letter";
+  if (!/[a-z]/.test(password)) return "Password must contain a lowercase letter";
+  if (!/[0-9]/.test(password)) return "Password must contain a number";
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) return "Password must contain a special character (e.g. @, #, $, !)";
+  return null;
 }
 
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, email: user.email, phone: user.phone, createdAt: user.createdAt };
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    createdAt: user.createdAt,
+  };
 }
 
 function createSession(type, subject) {
@@ -319,73 +237,62 @@ function orderTotal(items, products, method) {
   return { lines, subtotal, codCharge, total: subtotal + codCharge };
 }
 
-app.post("/api/auth/request-otp", async (req, res) => {
+// ── Customer Registration ──
+app.post("/api/auth/register", async (req, res) => {
+  const firstName = String(req.body.firstName || "").trim();
+  const lastName = String(req.body.lastName || "").trim();
+  const phone = cleanPhone(req.body.phone);
   const email = cleanEmail(req.body.email);
-  if (!validEmail(email)) return res.status(400).json({ error: "Valid email address required" });
+  const password = req.body.password || "";
 
-  // ── Rate limiting: max 3 OTP requests per minute per email ──
-  const nowMs = Date.now();
-  const timestamps = otpRateLimit.get(email) || [];
-  const recentTimestamps = timestamps.filter(ts => nowMs - ts < 60_000);
-  if (recentTimestamps.length >= 3) {
-    return res.status(429).json({ error: "Too many OTP requests. Please wait 1 minute before trying again." });
-  }
-  recentTimestamps.push(nowMs);
-  otpRateLimit.set(email, recentTimestamps);
+  if (!firstName) return res.status(400).json({ error: "First name is required" });
+  if (!lastName) return res.status(400).json({ error: "Last name is required" });
+  if (!phone || phone.length < 7) return res.status(400).json({ error: "Valid mobile number is required" });
+  if (!validEmail(email)) return res.status(400).json({ error: "Valid email address is required" });
 
-  // ── Generate secure 6-digit OTP ──
-  const otp = String(crypto.randomInt(100000, 999999));
+  const passwordError = validPassword(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
 
-  // ── Store OTP in memory with 2-minute expiry ──
-  otpStore.set(email, { otp, expiresAt: nowMs + 2 * 60 * 1000 });
+  const db = await readDb();
+  const existing = db.users.find((u) => u.email === email);
+  if (existing) return res.status(409).json({ error: "An account with this email already exists. Please login." });
 
-  // ── Auto-cleanup after 2 minutes ──
-  setTimeout(() => {
-    const stored = otpStore.get(email);
-    if (stored && stored.otp === otp) otpStore.delete(email);
-  }, 2 * 60 * 1000);
+  const { hash, salt } = hashPassword(password);
+  const user = {
+    id: uid("usr"),
+    firstName,
+    lastName,
+    phone,
+    email,
+    passwordHash: hash,
+    salt,
+    createdAt: now(),
+  };
+  db.users.push(user);
+  await writeDb(db);
 
-  // ── Send OTP via email (Gmail SMTP or Resend) ──
-  const emailResult = await sendOtpEmail(email, otp);
-  if (!emailResult.sent) {
-    otpStore.delete(email);
-    return res.status(503).json({
-      error: emailResult.error || "Could not send OTP email. Please contact the store.",
-    });
-  }
-
-  res.json({ message: "OTP sent to your email.", email });
+  console.log(`✅ New customer registered: ${email}`);
+  res.status(201).json({ token: createSession("customer", user.id), user: publicUser(user) });
 });
 
-app.post("/api/auth/verify-otp", async (req, res) => {
+// ── Customer Login ──
+app.post("/api/auth/login", async (req, res) => {
   const email = cleanEmail(req.body.email);
-  const otp = String(req.body.otp || "").trim();
+  const password = req.body.password || "";
 
-  // ── Validate against in-memory OTP store ──
-  const record = otpStore.get(email);
-  if (!record) {
-    return res.status(400).json({ error: "No OTP found. Please request a new one." });
-  }
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(email);
-    return res.status(400).json({ error: "OTP expired. Please request a new one." });
-  }
-  if (record.otp !== otp) {
-    return res.status(400).json({ error: "Invalid OTP. Please check and try again." });
-  }
+  if (!validEmail(email)) return res.status(400).json({ error: "Valid email address is required" });
+  if (!password) return res.status(400).json({ error: "Password is required" });
 
-  // ── OTP verified — delete it immediately ──
-  otpStore.delete(email);
-
-  // ── Find or create user in DB ──
   const db = await readDb();
-  let user = db.users.find((entry) => entry.email === email);
-  if (!user) {
-    user = { id: uid("usr"), email, createdAt: now() };
-    db.users.push(user);
-    await writeDb(db);
+  const user = db.users.find((u) => u.email === email);
+  if (!user || !user.passwordHash) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+  if (!verifyPassword(password, user.passwordHash, user.salt)) {
+    return res.status(401).json({ error: "Invalid email or password" });
   }
 
+  console.log(`✅ Customer logged in: ${email}`);
   res.json({ token: createSession("customer", user.id), user: publicUser(user) });
 });
 
@@ -584,6 +491,47 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 app.get("/api/orders/my", requireAuth, async (req, res) => {
   const db = await readDb();
   res.json(db.orders.filter((order) => order.userId === req.userId).reverse());
+});
+
+// ── Customer Order Cancellation ──
+app.post("/api/orders/:id/cancel", requireAuth, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((entry) => entry.id === req.params.id && entry.userId === req.userId);
+  if (!order) return res.status(404).json({ error: "Order not found" });
+
+  // Already cancelled?
+  if (order.orderStatus === "Cancelled") {
+    return res.status(400).json({ error: "This order is already cancelled" });
+  }
+
+  // Check if order has been shipped (Out for delivery, Shipped, Delivered)
+  const isShipped = order.tracking.some((t) => 
+    t.at && (t.label.toLowerCase().includes("shipped") || 
+             t.label.toLowerCase().includes("out for delivery") || 
+             t.label.toLowerCase().includes("delivered"))
+  );
+
+  if (isShipped) {
+    return res.status(400).json({ error: "Cannot cancel — order has already been shipped" });
+  }
+
+  // Cancel the order
+  order.orderStatus = "Cancelled";
+  order.paymentStatus = order.paymentMethod === "COD" ? "Cancelled" : "Refund pending";
+  order.cancelledAt = now();
+  order.tracking.push({ label: "Order cancelled by customer", at: now() });
+
+  // Update payment record
+  db.payments
+    .filter((p) => p.orderId === order.id)
+    .forEach((p) => {
+      p.status = order.paymentStatus;
+      p.updatedAt = now();
+    });
+
+  await writeDb(db);
+  console.log(`❌ Order ${order.id} cancelled by customer`);
+  res.json({ message: "Order cancelled successfully", order });
 });
 
 app.post("/api/returns", requireAuth, async (req, res) => {
