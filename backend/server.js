@@ -15,9 +15,12 @@ const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const ADMIN_PHONE = process.env.ADMIN_PHONE || "9744226927";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Naresh@5454";
-const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "gmail";
+const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "brevo";
 const GMAIL_USER = process.env.GMAIL_USER || "";
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || "";
+const BREVO_USER = process.env.BREVO_USER || "";
+const BREVO_PASS = process.env.BREVO_PASS || "";
+const BREVO_FROM = process.env.BREVO_FROM || "";
 const WORKER_JWT_SECRET = process.env.WORKER_JWT_SECRET || "birgunj-fashion-default-secret-change-me";
 
 app.use(cors());
@@ -186,7 +189,35 @@ async function sendOtpEmail(email, otp) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
   const RESEND_FROM = process.env.RESEND_FROM || "Birgunj Fashion <onboarding@resend.dev>";
 
-  // ── Option 1: Gmail SMTP via Nodemailer (primary) ──
+  const mailOptions = {
+    to: email,
+    subject: "Your Login OTP",
+    text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
+    html: otpEmailHtml(otp),
+  };
+
+  // ── Option 1: Brevo SMTP (FREE — 300 emails/day, no credit card) ──
+  if (EMAIL_PROVIDER === "brevo" && BREVO_USER && BREVO_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: "smtp-relay.brevo.com",
+        port: 587,
+        secure: false,
+        auth: { user: BREVO_USER, pass: BREVO_PASS },
+      });
+      await transporter.sendMail({
+        from: BREVO_FROM || `"BIRGUNJ FASHION COLLECTION" <${BREVO_USER}>`,
+        ...mailOptions,
+      });
+      console.log(`✅ OTP email sent to ${email} via Brevo`);
+      return { sent: true };
+    } catch (error) {
+      console.error("Brevo send error:", error.message);
+      return { sent: false, error: "Could not send OTP email. Please try again." };
+    }
+  }
+
+  // ── Option 2: Gmail SMTP via Nodemailer ──
   if (EMAIL_PROVIDER === "gmail" && GMAIL_USER && GMAIL_APP_PASSWORD) {
     try {
       const transporter = nodemailer.createTransport({
@@ -195,20 +226,17 @@ async function sendOtpEmail(email, otp) {
       });
       await transporter.sendMail({
         from: `"BIRGUNJ FASHION COLLECTION" <${GMAIL_USER}>`,
-        to: email,
-        subject: "Your Login OTP",
-        text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
-        html: otpEmailHtml(otp),
+        ...mailOptions,
       });
       console.log(`✅ OTP email sent to ${email} via Gmail`);
       return { sent: true };
     } catch (error) {
       console.error("Gmail send error:", error.message);
-      return { sent: false, error: error.message };
+      return { sent: false, error: "Could not send OTP email. Please try again." };
     }
   }
 
-  // ── Option 2: Resend API ──
+  // ── Option 3: Resend API ──
   if (RESEND_API_KEY) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -220,26 +248,24 @@ async function sendOtpEmail(email, otp) {
         body: JSON.stringify({
           from: RESEND_FROM,
           to: [email],
-          subject: "Your Login OTP",
-          text: `Your OTP is ${otp}. It will expire in 2 minutes.`,
-          html: otpEmailHtml(otp),
+          ...mailOptions,
         }),
       });
       const result = await res.json();
       if (!res.ok) {
         console.error("Resend API error:", JSON.stringify(result));
-        return { sent: false, error: result.message || "Resend failed" };
+        return { sent: false, error: "Could not send OTP email. Please try again." };
       }
       console.log(`✅ OTP email sent to ${email} via Resend`);
       return { sent: true };
     } catch (error) {
       console.error("Resend send error:", error.message);
-      return { sent: false, error: error.message };
+      return { sent: false, error: "Could not send OTP email. Please try again." };
     }
   }
 
-  // ── No email provider configured — FAIL (no dev mode / no console OTP) ──
-  console.error("❌ No email provider configured. Set GMAIL or RESEND credentials in .env");
+  // ── No email provider configured ──
+  console.error("❌ No email provider configured. Set BREVO, GMAIL, or RESEND credentials in .env");
   return { sent: false, error: "Email service not configured. Please contact the store owner." };
 }
 
