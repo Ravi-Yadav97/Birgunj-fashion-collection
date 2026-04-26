@@ -633,7 +633,9 @@ ensureDb().then(() => {
   const SSL_KEY_PATH = path.join(__dirname, "server.key");
   const SSL_CERT_PATH = path.join(__dirname, "server.cert");
   
-  if (fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+
+  if (!isProduction && fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
     const options = {
       key: fsSync.readFileSync(SSL_KEY_PATH),
       cert: fsSync.readFileSync(SSL_CERT_PATH),
