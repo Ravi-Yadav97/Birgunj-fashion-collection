@@ -292,6 +292,9 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
+  user.lastLoginAt = now();
+  await writeDb(db);
+
   console.log(`✅ Customer logged in: ${email}`);
   res.json({ token: createSession("customer", user.id), user: publicUser(user) });
 });
@@ -329,10 +332,12 @@ app.post("/api/auth/exchange-token", async (req, res) => {
     const db = await readDb();
     let user = db.users.find((u) => u.email === email);
     if (!user) {
-      user = { id: uid("usr"), email, createdAt: now() };
+      user = { id: uid("usr"), email, createdAt: now(), lastLoginAt: now() };
       db.users.push(user);
-      await writeDb(db);
+    } else {
+      user.lastLoginAt = now();
     }
+    await writeDb(db);
 
     res.json({ token: createSession("customer", user.id), user: publicUser(user) });
   } catch (e) {
@@ -423,6 +428,22 @@ app.put("/api/admin/settings", requireAdmin, async (req, res) => {
   res.json({ settings: db.settings, pages: db.pages });
 });
 
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find(u => u.id === req.userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  res.json({ firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone, avatar: user.avatar });
+});
+
+app.put("/api/auth/me/avatar", requireAuth, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find(u => u.id === req.userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.avatar = req.body.avatar;
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 app.post("/api/orders", requireAuth, async (req, res) => {
   const method = req.body.paymentMethod === "COD" ? "COD" : "ONLINE";
   const db = await readDb();
@@ -490,7 +511,15 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 
 app.get("/api/orders/my", requireAuth, async (req, res) => {
   const db = await readDb();
-  res.json(db.orders.filter((order) => order.userId === req.userId).reverse());
+  const userOrders = db.orders.filter((order) => order.userId === req.userId);
+  const userReturns = db.returns.filter((r) => r.userId === req.userId);
+  
+  const result = userOrders.map(order => {
+    const returnReq = userReturns.find(r => r.orderId === order.id);
+    return { ...order, returnRequest: returnReq };
+  });
+  
+  res.json(result.reverse());
 });
 
 // ── Customer Order Cancellation ──
@@ -538,10 +567,16 @@ app.post("/api/returns", requireAuth, async (req, res) => {
   const db = await readDb();
   const order = db.orders.find((entry) => entry.id === req.body.orderId && entry.userId === req.userId);
   if (!order) return res.status(404).json({ error: "Order not found" });
+
+  if (db.returns.find(r => r.orderId === order.id)) {
+    return res.status(400).json({ error: "A request has already been submitted for this order" });
+  }
+
   const request = {
     id: uid("ret"),
     orderId: order.id,
     userId: req.userId,
+    type: req.body.type || "Return",
     reason: req.body.reason || "Other",
     details: req.body.details || "",
     status: "Requested",
@@ -552,20 +587,59 @@ app.post("/api/returns", requireAuth, async (req, res) => {
   res.status(201).json(request);
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", requireAuth, async (req, res) => {
   const db = await readDb();
   const message = {
     id: uid("msg"),
-    name: req.body.name || "Customer",
-    phone: cleanPhone(req.body.phone),
-    message: String(req.body.message || "").slice(0, 500),
+    userId: req.userId,
+    message: String(req.body.message || "").trim(),
+    sender: "customer",
     status: "New",
+    read: false,
     createdAt: now(),
   };
   if (!message.message) return res.status(400).json({ error: "Message required" });
   db.chatMessages.push(message);
   await writeDb(db);
-  res.status(201).json({ message: "Thanks. Our support team will contact you shortly.", chat: message });
+  res.status(201).json({ message: "Message sent", chat: message });
+});
+
+app.get("/api/chat", requireAuth, async (req, res) => {
+  const db = await readDb();
+  let updated = false;
+  const userChats = db.chatMessages.filter(msg => {
+    if (msg.userId === req.userId) {
+      if (msg.sender === "admin" && msg.read === false) {
+        msg.read = true;
+        updated = true;
+      }
+      return true;
+    }
+    return false;
+  });
+  if (updated) await writeDb(db);
+  res.json(userChats);
+});
+
+app.get("/api/chat/unread", requireAuth, async (req, res) => {
+  const db = await readDb();
+  const count = db.chatMessages.filter(msg => msg.userId === req.userId && msg.sender === "admin" && msg.read === false).length;
+  res.json({ count });
+});
+
+app.get("/api/admin/customers", requireAdmin, async (_req, res) => {
+  const db = await readDb();
+  const customers = db.users.map(u => ({
+    id: u.id,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    email: u.email,
+    phone: u.phone,
+    createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt,
+    avatar: u.avatar
+  }));
+  res.json(customers.reverse());
 });
 
 app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
@@ -602,19 +676,57 @@ app.get("/api/admin/returns", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/chats", requireAdmin, async (_req, res) => {
   const db = await readDb();
-  res.json(db.chatMessages.reverse());
+  
+  // Group by userId for admin conversation view
+  const grouped = {};
+  for (const msg of db.chatMessages) {
+    if (!grouped[msg.userId]) {
+      const user = db.users.find(u => u.id === msg.userId) || { firstName: "Unknown", phone: "" };
+      grouped[msg.userId] = {
+        userId: msg.userId,
+        name: user.firstName + " " + (user.lastName || ""),
+        phone: user.phone,
+        messages: [],
+        lastMessageAt: msg.createdAt
+      };
+    }
+    grouped[msg.userId].messages.push(msg);
+    if (msg.createdAt > grouped[msg.userId].lastMessageAt) {
+      grouped[msg.userId].lastMessageAt = msg.createdAt;
+    }
+  }
+  
+  const conversations = Object.values(grouped).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+  res.json(conversations);
 });
 
-app.put("/api/admin/chats/:id", requireAdmin, async (req, res) => {
+app.post("/api/admin/chats/:userId/reply", requireAdmin, async (req, res) => {
   const db = await readDb();
-  const message = db.chatMessages.find((entry) => entry.id === req.params.id);
-  if (!message) return res.status(404).json({ error: "Chat message not found" });
-  message.status = req.body.status || message.status;
-  message.updatedAt = now();
+  const message = {
+    id: uid("msg"),
+    userId: req.params.userId,
+    message: String(req.body.message || "").trim(),
+    sender: "admin",
+    read: false,
+    createdAt: now(),
+  };
+  if (!message.message) return res.status(400).json({ error: "Message required" });
+  db.chatMessages.push(message);
   await writeDb(db);
-  res.json(message);
+  res.status(201).json(message);
 });
-
+app.post("/api/admin/chats/:userId/read", requireAdmin, async (req, res) => {
+  const db = await readDb();
+  let updated = false;
+  db.chatMessages.forEach(msg => {
+    if (msg.userId === req.params.userId && msg.sender === "customer" && !msg.read) {
+      msg.read = true;
+      updated = true;
+    }
+  });
+  if (updated) await writeDb(db);
+  res.json({ success: true });
+});
 app.put("/api/admin/returns/:id", requireAdmin, async (req, res) => {
   const db = await readDb();
   const request = db.returns.find((entry) => entry.id === req.params.id);
@@ -625,6 +737,10 @@ app.put("/api/admin/returns/:id", requireAdmin, async (req, res) => {
   res.json(request);
 });
 
+app.all("/api/*", (_req, res) => {
+  res.status(404).json({ error: "API route not found" });
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
 });
@@ -633,9 +749,9 @@ ensureDb().then(() => {
   const SSL_KEY_PATH = path.join(__dirname, "server.key");
   const SSL_CERT_PATH = path.join(__dirname, "server.cert");
   
-  const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  const enableHttps = process.env.ENABLE_LOCAL_HTTPS === "true";
 
-  if (!isProduction && fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
+  if (enableHttps && fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
     const options = {
       key: fsSync.readFileSync(SSL_KEY_PATH),
       cert: fsSync.readFileSync(SSL_CERT_PATH),
@@ -647,7 +763,7 @@ ensureDb().then(() => {
   } else {
     http.createServer(app).listen(PORT, "0.0.0.0", () => {
       console.log(`BIRGUNJ FASHION COLLECTION running at http://localhost:${PORT}`);
-      console.log(`NOTE: GPS location requires HTTPS. Generate SSL certs (server.key, server.cert) in the backend directory to enable it.`);
+      console.log(`NOTE: GPS location requires HTTPS locally. Set ENABLE_LOCAL_HTTPS=true in .env to enable it.`);
     });
   }
 });

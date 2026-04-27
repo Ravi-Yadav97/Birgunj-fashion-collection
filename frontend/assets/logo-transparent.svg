@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 80" width="100%" height="100%">
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c23616"/>
+      <stop offset="100%" stop-color="#e84118"/>
+    </linearGradient>
+  </defs>
+  
+  <g transform="translate(0, 0) scale(0.8)">
+    <path d="M35 30 L45 30 C55 30 55 45 45 45 C58 45 58 65 45 65 L35 65 Z" fill="none" stroke="#111827" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M65 30 L55 30 L55 65" fill="none" stroke="url(#brandGradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M55 45 L62 45" fill="none" stroke="url(#brandGradient)" stroke-width="6" stroke-linecap="round" />
+  </g>
+
+  <text x="85" y="40" font-family="'Inter', 'Helvetica Neue', Helvetica, sans-serif" font-size="24" font-weight="900" fill="#111827" letter-spacing="0.5">BIRGUNJ FASHION</text>
+  <text x="86" y="60" font-family="'Inter', 'Helvetica Neue', Helvetica, sans-serif" font-size="12" font-weight="700" fill="#c23616" letter-spacing="4">COLLECTION</text>
+</svg>

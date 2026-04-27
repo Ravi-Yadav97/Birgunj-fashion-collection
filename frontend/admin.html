@@ -69,6 +69,10 @@
       font-weight: 900;
       letter-spacing: 0;
     }
+    .brand img {
+      height: 36px;
+      display: block;
+    }
     .mark {
       width: 40px;
       height: 40px;
@@ -180,7 +184,9 @@
 <body>
   <header>
     <nav class="nav">
-      <div class="brand"><span class="mark">BF</span><span>BIRGUNJ FASHION COLLECTION</span></div>
+      <div class="brand">
+        <img src="assets/logo-main.svg" alt="Birgunj Fashion Collection" />
+      </div>
       <a href="index.html">Back to Store</a>
     </nav>
   </header>
@@ -210,6 +216,7 @@
           <button onclick="adminTab('payments', this)">Payments</button>
           <button onclick="adminTab('returns', this)">Returns</button>
           <button onclick="adminTab('chats', this)">Chats</button>
+          <button onclick="adminTab('customers', this)">Customers</button>
           <button onclick="adminTab('pages', this)">Pages & QR</button>
         </div>
         <div id="adminContent"></div>
@@ -294,6 +301,7 @@
       if (name === "payments") renderAdminPayments();
       if (name === "returns") renderAdminReturns();
       if (name === "chats") renderAdminChats();
+      if (name === "customers") renderAdminCustomers();
       if (name === "pages") renderAdminPages();
     }
 
@@ -612,7 +620,7 @@
     async function renderAdminReturns() {
       try {
         const returns = await api("/api/admin/returns", { headers: adminHeaders() });
-        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Return/Refund Requests</h3>${returns.map((r) => `<div class="order-row"><strong>${r.orderId}</strong><span>${r.reason} | ${r.status}</span><select onchange="updateReturn('${r.id}', this.value)"><option>${r.status}</option><option>Approved</option><option>Rejected</option><option>Refunded</option></select></div>`).join("") || "<p>No requests.</p>"}</div>`;
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Return/Refund Requests</h3>${returns.map((r) => `<div class="order-row"><strong>${r.orderId}</strong><span><strong>[${r.type || 'Return'}]</strong> ${r.reason} | ${r.status}</span><select onchange="updateReturn('${r.id}', this.value)"><option>${r.status}</option><option>Approved</option><option>Rejected</option><option>Refunded</option></select></div>`).join("") || "<p>No requests.</p>"}</div>`;
       } catch (e) { toast(e.message); }
     }
 
@@ -623,23 +631,113 @@
       } catch (e) { toast(e.message); }
     }
 
-    async function renderAdminChats() {
+    async function renderAdminCustomers() {
       try {
-        const chats = await api("/api/admin/chats", { headers: adminHeaders() });
-        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Live Chat Queries</h3>${chats.map((chat) => `
-          <div class="order-row">
-            <strong>${chat.name}</strong>
-            <span>${chat.message}<br><span class="muted">${chat.phone || "No phone"} | ${chat.status} | ${dateText(chat.createdAt)}</span></span>
-            <select onchange="updateChat('${chat.id}', this.value)"><option>${chat.status}</option><option>New</option><option>Contacted</option><option>Resolved</option></select>
-          </div>`).join("") || "<p>No chat queries.</p>"}</div>`;
+        const customers = await api("/api/admin/customers", { headers: adminHeaders() });
+        console.log("Customers API response:", customers);
+        
+        if (!Array.isArray(customers)) {
+          throw new Error("Invalid API response: Expected an array of customers.");
+        }
+
+        document.getElementById("adminContent").innerHTML = `<div class="panel"><h3>Customers</h3>${customers.map((c) => `
+          <div class="order-row" style="grid-template-columns: 60px 1fr 1fr; align-items: center;">
+            <img src="${c.avatar || 'https://ui-avatars.com/api/?name=' + (c.firstName || 'U') + '&background=b42318&color=fff'}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover;">
+            <div>
+              <strong>${c.firstName || "Unknown"} ${c.lastName || ""}</strong><br>
+              <span class="muted">${c.phone || "No phone"} | ${c.email || "No email"}</span>
+            </div>
+            <div style="text-align: right;">
+              <span class="muted" style="font-size: 13px; display: block;">Joined: ${new Date(c.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span>
+              <span class="muted" style="font-size: 13px; display: block;">Last Login: ${c.lastLoginAt ? new Date(c.lastLoginAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Never"}</span>
+            </div>
+          </div>`).join("") || "<p>No customers yet.</p>"}</div>`;
       } catch (e) { toast(e.message); }
     }
 
-    async function updateChat(id, status) {
+    let adminConversations = [];
+    
+    async function renderAdminChats() {
       try {
-        await api(`/api/admin/chats/${id}`, { method: "PUT", headers: adminHeaders(), body: JSON.stringify({ status }) });
-        toast("Chat updated");
+        adminConversations = await api("/api/admin/chats", { headers: adminHeaders() });
+        document.getElementById("adminContent").innerHTML = `
+          <div class="two-col">
+            <div class="panel">
+              <h3>Customer Conversations</h3>
+              <div style="max-height: 500px; overflow-y: auto;">
+                ${adminConversations.map((conv) => `
+                  <div style="cursor:pointer; transition: background 0.2s; padding:12px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:4px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" onclick="openAdminChat('${conv.userId}')">
+                    <strong style="font-size:15px;">${conv.name}</strong>
+                    <span style="font-size:14px; color:var(--ink);">${conv.phone || "No phone"}</span>
+                    <span class="muted" style="font-size:12px;">Last: ${dateText(conv.lastMessageAt)}</span>
+                  </div>
+                `).join("") || "<p>No active conversations.</p>"}
+              </div>
+            </div>
+            <div class="panel" id="adminChatDetail" style="display:flex; flex-direction:column; height:500px;">
+              <h3 style="margin-top:0;">Select a conversation</h3>
+              <p class="muted">Click on a user to view chat history and reply.</p>
+            </div>
+          </div>`;
       } catch (e) { toast(e.message); }
+    }
+
+    function timeText(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function openAdminChat(userId) {
+      try {
+        await api("/api/admin/chats/" + userId + "/read", { method: "POST", headers: adminHeaders() });
+      } catch(e) {}
+      
+      const conv = adminConversations.find(c => c.userId === userId);
+      if (!conv) return;
+
+      conv.messages.forEach(m => { if (m.sender === 'customer') m.read = true; });
+
+      document.getElementById("adminChatDetail").innerHTML = `
+        <h3 style="margin-top:0; border-bottom:1px solid var(--line); padding-bottom:8px;">Chat with ${conv.name}</h3>
+        <div id="adminChatHistory" style="flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; background:#fafafa; border-radius:8px; margin-bottom:12px;">
+          ${conv.messages.map(c => `
+            <div style="align-self: ${c.sender === 'admin' ? 'flex-end' : 'flex-start'}; background: ${c.sender === 'admin' ? 'var(--brand)' : '#e2e8f0'}; color: ${c.sender === 'admin' ? '#fff' : '#0f172a'}; padding:8px 12px; border-radius:12px; max-width:85%; display:flex; flex-direction:column; gap:2px;">
+              <span style="font-size:14px; line-height:1.4;">${c.message}</span>
+              <div style="font-size:10px; text-align:right; opacity:0.8; display:flex; justify-content:flex-end; align-items:center; gap:4px;">
+                ${timeText(c.createdAt)}
+                ${c.sender === 'admin' ? (c.read ? '<span style="color:#60a5fa; font-size:12px;">✓✓</span>' : '<span style="font-size:12px;">✓</span>') : ''}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <form onsubmit="replyAdminChat(event, '${userId}')" style="display:flex; gap:8px;">
+          <input id="adminChatInput" style="flex:1;" placeholder="Type your reply..." required />
+          <button>Send</button>
+        </form>
+      `;
+      const hist = document.getElementById("adminChatHistory");
+      hist.scrollTop = hist.scrollHeight;
+    }
+
+    async function replyAdminChat(event, userId) {
+      event.preventDefault();
+      const input = document.getElementById("adminChatInput");
+      const message = input.value.trim();
+      if(!message) return;
+      input.disabled = true;
+      try {
+        await api("/api/admin/chats/" + userId + "/reply", {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({ message })
+        });
+        await renderAdminChats();
+        openAdminChat(userId);
+      } catch(e) { 
+        toast(e.message); 
+        input.disabled = false;
+      }
     }
 
     function renderAdminPages() {
@@ -658,6 +756,16 @@
             <button class="full">Save Settings</button>
           </div>
         </form>`;
+    }
+
+    function readUpload(input) {
+      return new Promise((resolve) => {
+        if (!input.files || !input.files[0]) return resolve(null);
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(input.files[0]);
+      });
     }
 
     async function savePages(event) {
