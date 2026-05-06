@@ -513,12 +513,12 @@ app.get("/api/orders/my", requireAuth, async (req, res) => {
   const db = await readDb();
   const userOrders = db.orders.filter((order) => order.userId === req.userId);
   const userReturns = db.returns.filter((r) => r.userId === req.userId);
-  
+
   const result = userOrders.map(order => {
     const returnReq = userReturns.find(r => r.orderId === order.id);
     return { ...order, returnRequest: returnReq };
   });
-  
+
   res.json(result.reverse());
 });
 
@@ -534,10 +534,10 @@ app.post("/api/orders/:id/cancel", requireAuth, async (req, res) => {
   }
 
   // Check if order has been shipped (Out for delivery, Shipped, Delivered)
-  const isShipped = order.tracking.some((t) => 
-    t.at && (t.label.toLowerCase().includes("shipped") || 
-             t.label.toLowerCase().includes("out for delivery") || 
-             t.label.toLowerCase().includes("delivered"))
+  const isShipped = order.tracking.some((t) =>
+    t.at && (t.label.toLowerCase().includes("shipped") ||
+      t.label.toLowerCase().includes("out for delivery") ||
+      t.label.toLowerCase().includes("delivered"))
   );
 
   if (isShipped) {
@@ -676,7 +676,7 @@ app.get("/api/admin/returns", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/chats", requireAdmin, async (_req, res) => {
   const db = await readDb();
-  
+
   // Group by userId for admin conversation view
   const grouped = {};
   for (const msg of db.chatMessages) {
@@ -695,7 +695,7 @@ app.get("/api/admin/chats", requireAdmin, async (_req, res) => {
       grouped[msg.userId].lastMessageAt = msg.createdAt;
     }
   }
-  
+
   const conversations = Object.values(grouped).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
   res.json(conversations);
 });
@@ -725,7 +725,7 @@ app.post("/api/admin/chats/:userId/read", requireAdmin, async (req, res) => {
     }
   });
   if (updated) await writeDb(db);
-  res.json({ success: true });
+  res.json({ success: true });s
 });
 app.put("/api/admin/returns/:id", requireAdmin, async (req, res) => {
   const db = await readDb();
@@ -748,7 +748,7 @@ app.get("*", (_req, res) => {
 ensureDb().then(() => {
   const SSL_KEY_PATH = path.join(__dirname, "server.key");
   const SSL_CERT_PATH = path.join(__dirname, "server.cert");
-  
+
   const enableHttps = process.env.ENABLE_LOCAL_HTTPS === "true";
 
   if (enableHttps && fsSync.existsSync(SSL_KEY_PATH) && fsSync.existsSync(SSL_CERT_PATH)) {
